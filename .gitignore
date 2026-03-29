@@ -1,0 +1,84 @@
+# ════════════════════════════════════════════════════════════════
+# NetWatch Pro — .gitignore
+# ════════════════════════════════════════════════════════════════
+
+# ── Secrets (NEVER commit these) ────────────────────────────────
+.env
+*.env
+!.env.example
+
+# ── Python ───────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+venv/
+.venv/
+env/
+.env/
+pip-log.txt
+
+# ── Data / Databases (runtime generated, not source code) ────────
+backend/data/
+data/
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite
+*.sqlite3
+archive/
+
+# ── Logs ─────────────────────────────────────────────────────────
+*.log
+*.log.*
+logs/
+eve.json
+
+# ── Docker ───────────────────────────────────────────────────────
+# Don't ignore docker-compose.yml — it's part of the project
+# But ignore any override files with real secrets
+docker-compose.override.yml
+docker-compose.local.yml
+.docker/
+
+# ── OS files ─────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ── Editors ──────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+
+# ── Release archives ──────────────────────────────────────────────
+*.tar.gz
+*.tar
+*.zip
+releases/
+
+# ── Temporary files ───────────────────────────────────────────────
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup

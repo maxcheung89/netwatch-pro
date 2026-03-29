@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetWatch Pro — Login</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --cyan:#00f5ff;--mag:#ff00ff;
+  --dark:#050508;--card:rgba(5,5,14,0.88);
+  --border:rgba(0,245,255,0.16);
+  --text:#c0dde8;--dim:#3a6070;
+  --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
+}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--dark);}
+#cv{position:fixed;inset:0;display:block;}
+#vg{position:fixed;inset:0;pointer-events:none;z-index:1;
+  background:radial-gradient(ellipse 70% 60% at 50% 50%,transparent 0%,rgba(0,0,0,.65) 100%);}
+#sl{position:fixed;inset:0;pointer-events:none;z-index:1;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.06) 2px,rgba(0,0,0,.06) 4px);}
+#wrap{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;}
+
+/* Card */
+.card{
+  background:var(--card);border:1px solid var(--border);border-radius:5px;
+  padding:44px 48px 38px;width:100%;max-width:420px;
+  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  box-shadow:0 0 0 1px rgba(0,245,255,.05),0 20px 60px rgba(0,0,0,.8),
+    0 0 80px rgba(0,245,255,.04),inset 0 1px 0 rgba(0,245,255,.05);
+  position:relative;overflow:hidden;
+}
+/* Corner brackets */
+.card::before,.card::after{
+  content:'';position:absolute;width:18px;height:18px;
+  border-color:rgba(0,245,255,.45);border-style:solid;
+}
+.card::before{top:10px;left:10px;border-width:1px 0 0 1px;}
+.card::after{bottom:10px;right:10px;border-width:0 1px 1px 0;}
+
+/* Logo */
+.logo{display:flex;align-items:center;gap:12px;margin-bottom:28px;}
+.hex{width:38px;height:38px;position:relative;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;}
+.hex svg{position:absolute;inset:0;width:100%;height:100%;}
+.hex-letter{font-family:var(--mono);font-size:14px;font-weight:600;
+  color:var(--dark);position:relative;z-index:1;}
+.logo-name{font-family:var(--mono);font-size:19px;font-weight:600;
+  letter-spacing:4px;color:#ddeef5;}
+.logo-name span{color:var(--cyan);}
+.logo-tag{font-family:var(--mono);font-size:9px;letter-spacing:2.5px;
+  color:var(--dim);margin-top:2px;}
+
+/* Tagline */
+.tl{border-left:2px solid var(--cyan);padding-left:10px;
+  margin-bottom:24px;font-family:var(--mono);font-size:10px;
+  letter-spacing:1px;color:var(--dim);line-height:1.8;}
+.tl b{color:rgba(0,245,255,.7);}
+
+/* Field */
+label{display:block;font-family:var(--mono);font-size:9px;
+  letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:7px;}
+.iw{position:relative;}
+input[type=password],input[type=text]{
+  width:100%;background:rgba(0,245,255,.03);
+  border:1px solid rgba(0,245,255,.12);color:#cce8f0;
+  padding:12px 42px 12px 14px;border-radius:3px;
+  font-family:var(--mono);font-size:13px;letter-spacing:2px;
+  outline:none;transition:border-color .2s,box-shadow .2s,background .2s;
+}
+input:focus{
+  border-color:rgba(0,245,255,.4);background:rgba(0,245,255,.05);
+  box-shadow:0 0 20px rgba(0,245,255,.07),inset 0 0 10px rgba(0,245,255,.02);
+}
+input::placeholder{color:rgba(0,245,255,.18);letter-spacing:1px;}
+.eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);
+  background:none;border:none;cursor:pointer;color:var(--dim);font-size:14px;
+  padding:2px;transition:color .15s;line-height:1;}
+.eye:hover{color:var(--cyan);}
+.caps{font-family:var(--mono);font-size:9px;letter-spacing:1px;
+  color:#ff9500;margin-top:4px;display:none;}
+
+/* Button */
+.btn{
+  width:100%;margin-top:22px;padding:13px;background:transparent;
+  border:1px solid var(--cyan);color:var(--cyan);border-radius:3px;
+  cursor:pointer;font-family:var(--mono);font-size:11px;font-weight:600;
+  letter-spacing:3px;text-transform:uppercase;
+  position:relative;overflow:hidden;transition:all .2s;
+}
+.btn::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(0,245,255,.1),transparent);
+  transform:translateX(-100%);transition:transform .45s;
+}
+.btn:hover:not(:disabled)::before{transform:translateX(100%);}
+.btn:hover:not(:disabled){
+  background:rgba(0,245,255,.07);
+  box-shadow:0 0 28px rgba(0,245,255,.14),0 0 6px rgba(0,245,255,.3);
+}
+.btn:disabled{opacity:.35;cursor:not-allowed;}
+.bar{position:absolute;bottom:0;left:-100%;height:2px;width:100%;
+  background:linear-gradient(90deg,transparent,var(--cyan),var(--mag),transparent);}
+.btn.ld .bar{animation:bar .85s linear infinite;}
+@keyframes bar{to{left:100%;}}
+
+/* Messages */
+.msg{margin-top:13px;padding:9px 13px;border-radius:3px;
+  font-family:var(--mono);font-size:11px;line-height:1.6;
+  display:none;letter-spacing:.5px;}
+.msg.err{background:rgba(255,0,80,.07);border:1px solid rgba(255,0,80,.22);color:#ff2855;}
+.msg.ok {background:rgba(0,245,255,.07);border:1px solid rgba(0,245,255,.2);color:var(--cyan);}
+.msg.warn{background:rgba(255,149,0,.07);border:1px solid rgba(255,149,0,.22);color:#ff9500;}
+.cd{text-align:center;font-family:var(--mono);font-size:10px;
+  color:var(--dim);margin-top:8px;letter-spacing:1px;}
+
+/* Footer */
+.ft{margin-top:26px;padding-top:16px;border-top:1px solid rgba(0,245,255,.07);
+  display:flex;justify-content:space-between;align-items:center;}
+.ft-item{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:1px;}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;
+  background:var(--cyan);margin-right:5px;
+  box-shadow:0 0 6px var(--cyan);animation:pd 2s ease-in-out infinite;}
+@keyframes pd{0%,100%{opacity:1;}50%{opacity:.25;}}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="vg"></div>
+<div id="sl"></div>
+
+<div id="wrap">
+  <div class="card">
+    <div class="logo">
+      <div class="hex">
+        <svg viewBox="0 0 40 40" fill="none">
+          <polygon points="20,2 37,11 37,29 20,38 3,29 3,11"
+            fill="rgba(0,245,255,0.1)" stroke="rgba(0,245,255,0.55)" stroke-width="1.2"/>
+        </svg>
+        <span class="hex-letter">N</span>
+      </div>
+      <div>
+        <div class="logo-name">NET<span>WATCH</span></div>
+        <div class="logo-tag">NETWORK INTELLIGENCE PLATFORM</div>
+      </div>
+    </div>
+
+    <div class="tl">
+      <b>SECURE ACCESS REQUIRED</b><br>
+      Authorized personnel only · Session 8h
+    </div>
+
+    <div style="margin-bottom:18px">
+      <label>Access Password</label>
+      <div class="iw">
+        <input type="password" id="pw" placeholder="········"
+               autocomplete="current-password" autofocus
+               onkeydown="onKey(event)" onkeyup="chkCaps(event)">
+        <button class="eye" onclick="togPw()" tabindex="-1" id="eye">👁</button>
+      </div>
+      <div class="caps" id="caps">⚠ CAPS LOCK ON</div>
+    </div>
+
+    <button class="btn" id="btn" onclick="doLogin()">
+      <div class="bar"></div>
+      AUTHENTICATE
+    </button>
+
+    <div class="msg err"  id="merr"></div>
+    <div class="msg ok"   id="mok"></div>
+    <div class="msg warn" id="mwarn"></div>
+    <div class="cd" id="cd"></div>
+
+    <div class="ft">
+      <div class="ft-item"><span class="dot"></span>SYSTEM ONLINE</div>
+      <div class="ft-item">NetWatch Pro · v22</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── Cyberpunk Matrix Grid ───────────────────────────────────── */
+(()=>{
+  const cv  = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const SZ  = 26, GAP = 2, IN = SZ - GAP;
+  const CYAN={r:0,g:245,b:255}, MAG={r:255,g:0,b:255}, WHT={r:160,g:220,b:255};
+
+  let cols, rows, cells=[];
+
+  const lerp=(a,b,t)=>a+(b-a)*t;
+
+  function rndCol(){
+    const r=Math.random();
+    return r<.65?CYAN:r<.87?MAG:WHT;
+  }
+
+  function makeCell(cx,cy){
+    return{
+      cx,cy,
+      col:rndCol(), tCol:rndCol(), cT:0, cSpd:0.003+Math.random()*.007,
+      h:Math.random(), tH:Math.random(), spd:0.012+Math.random()*.04,
+      phase:Math.random()*Math.PI*2,
+      flick:0, fTimer:Math.random()*200
+    };
+  }
+
+  function resize(){
+    cv.width=innerWidth; cv.height=innerHeight;
+    cols=Math.ceil(cv.width/SZ)+1;
+    rows=Math.ceil(cv.height/SZ)+1;
+    cells=[];
+    for(let r=0;r<rows;r++)
+      for(let c=0;c<cols;c++)
+        cells.push(makeCell(c*SZ,r*SZ));
+  }
+
+  /* Multiple overlapping wave functions */
+  const WAVES=[
+    {ax:.42,ay:.55,sx:.0019,sy:.0024,sp:.00052,ph:0},
+    {ax:.28,ay:.38,sx:.0032,sy:.0016,sp:.00041,ph:1.8},
+    {ax:.18,ay:.28,sx:.0013,sy:.0038,sp:.00068,ph:3.1},
+    {ax:.12,ay:.2, sx:.0042,sy:.0012,sp:.00085,ph:4.7},
+  ];
+
+  function waveH(cx,cy,t){
+    let h=0;
+    for(const w of WAVES){
+      h+=w.ax*Math.sin(cx*w.sx+t*w.sp+w.ph);
+      h+=w.ay*Math.cos(cy*w.sy+t*w.sp*.72+w.ph+1.1);
+    }
+    return(h/(WAVES.length*1.5)+1)/2;
+  }
+
+  function draw(t){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    for(const c of cells){
+      c.tH=waveH(c.cx,c.cy,t);
+      c.h+=(c.tH-c.h)*c.spd;
+      c.fTimer--;
+      if(c.fTimer<=0){c.flick=1;c.fTimer=100+Math.random()*500;}
+      if(c.flick>0)c.flick*=.84;
+      const fh=Math.min(1,c.h+c.flick*.45);
+      c.cT+=c.cSpd;
+      if(c.cT>=1){c.col=c.tCol;c.tCol=rndCol();c.cT=0;c.cSpd=.002+Math.random()*.006;}
+      const cr=lerp(c.col.r,c.tCol.r,c.cT)|0;
+      const cg=lerp(c.col.g,c.tCol.g,c.cT)|0;
+      const cb=lerp(c.col.b,c.tCol.b,c.cT)|0;
+      const al=.04+fh*.52;
+      const x=c.cx+GAP/2, y=c.cy+GAP/2;
+      /* Glow */
+      if(fh>.28){
+        const g=ctx.createRadialGradient(x+IN/2,y+IN/2,0,x+IN/2,y+IN/2,IN*.95);
+        g.addColorStop(0,`rgba(${cr},${cg},${cb},${fh*.32})`);
+        g.addColorStop(1,`rgba(${cr},${cg},${cb},0)`);
+        ctx.fillStyle=g;
+        ctx.fillRect(x-5,y-5,IN+10,IN+10);
+      }
+      /* Cell body */
+      ctx.fillStyle=`rgba(${cr},${cg},${cb},${al})`;
+      ctx.fillRect(x,y,IN,IN);
+      /* Highlight edge */
+      if(fh>.48){
+        ctx.fillStyle=`rgba(${cr},${cg},${cb},${fh*.38})`;
+        ctx.fillRect(x,y,IN,1);
+        ctx.fillRect(x,y,1,IN);
+      }
+    }
+  }
+
+  let raf;
+  function loop(now){draw(now*.05);raf=requestAnimationFrame(loop);}
+  window.addEventListener('resize',resize);
+  resize();
+  raf=requestAnimationFrame(loop);
+})();
+
+/* ── Auth ────────────────────────────────────────────────────── */
+let limited=false, cdTimer=null;
+
+async function doLogin(){
+  const pw=document.getElementById('pw').value;
+  const btn=document.getElementById('btn');
+  if(!pw){showMsg('err','Enter your password.');return;}
+  if(limited)return;
+  btn.disabled=true; btn.classList.add('ld'); clrMsgs();
+  try{
+    const r=await fetch('/auth/login',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({password:pw}),
+      credentials:'include',
+    });
+    const d=await r.json();
+    if(d.ok){
+      showMsg('ok','ACCESS GRANTED — LOADING...');
+      btn.textContent='✓ AUTHENTICATED';
+      setTimeout(()=>{
+        const dest=new URLSearchParams(location.search).get('next')||'/';
+        window.location.href=dest;
+      },600);
+      return;
+    }
+    if(r.status===429||d.limited){
+      startCd(60); showMsg('err',d.error||'Too many attempts. Wait 60s.');
+    } else {
+      showMsg('err',d.error||'Authentication failed.');
+      document.getElementById('pw').select();
+    }
+  }catch(e){
+    showMsg('err','Connection error — is NetWatch running?');
+  }finally{
+    if(!limited){btn.disabled=false;btn.classList.remove('ld');
+      if(!btn.textContent.includes('✓'))btn.textContent='AUTHENTICATE';}
+  }
+}
+
+function startCd(s){
+  limited=true;
+  const btn=document.getElementById('btn');
+  const el=document.getElementById('cd');
+  btn.disabled=true;
+  let rem=s;
+  clearInterval(cdTimer);
+  cdTimer=setInterval(()=>{
+    rem--;
+    el.textContent=`RETRY IN ${rem}s`;
+    if(rem<=0){
+      clearInterval(cdTimer);limited=false;
+      btn.disabled=false;btn.classList.remove('ld');
+      btn.textContent='AUTHENTICATE';el.textContent='';
+      showMsg('warn','You may try again.');
+    }
+  },1000);
+}
+
+function onKey(e){if(e.key==='Enter')doLogin();}
+function togPw(){
+  const i=document.getElementById('pw');
+  i.type=i.type==='password'?'text':'password';
+  document.getElementById('eye').textContent=i.type==='text'?'🙈':'👁';
+}
+function chkCaps(e){
+  document.getElementById('caps').style.display=
+    e.getModifierState?.('CapsLock')?'block':'none';
+}
+function showMsg(t,txt){
+  clrMsgs();
+  const id=t==='ok'?'mok':t==='warn'?'mwarn':'merr';
+  const el=document.getElementById(id);
+  if(el){el.textContent=txt;el.style.display='block';}
+}
+function clrMsgs(){['merr','mwarn','mok'].forEach(id=>{
+  const el=document.getElementById(id);if(el)el.style.display='none';});}
+
+fetch('/auth/check',{credentials:'include'})
+  .then(r=>r.json()).then(d=>{if(d.authenticated)window.location.href='/';})
+  .catch(()=>{});
+</script>
+</body>
+</html>

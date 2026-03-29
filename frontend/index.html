@@ -1,0 +1,4117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NetWatch Pro</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+/* ══════════════════════════════════════════════════════════════
+   CYBERPUNK DESIGN SYSTEM
+   ══════════════════════════════════════════════════════════════ */
+:root{
+  /* Core palette */
+  --cyan:    #00f0ff;
+  --purple:  #9945ff;
+  --mag:     #ff00cc;
+  --green:   #00ff88;
+  --amber:   #ffaa00;
+  --red:     #ff2855;
+
+  /* Backgrounds — true dark */
+  --bg0:     #03040a;
+  --bg1:     #060810;
+  --bg2:     rgba(8,12,28,0.7);
+  --bg3:     rgba(12,18,38,0.55);
+  --bg4:     rgba(20,28,55,0.4);
+  --bg-solid:#060810;
+
+  /* Glass */
+  --glass:   rgba(6,10,24,0.72);
+  --glass2:  rgba(10,16,36,0.55);
+  --blur:    blur(14px);
+
+  /* Borders */
+  --border:  rgba(0,240,255,0.10);
+  --border2: rgba(0,240,255,0.18);
+  --border3: rgba(153,69,255,0.2);
+
+  /* Text */
+  --cb:      #e8f4ff;
+  --ct:      #9ab8cc;
+  --cd:      #3a5568;
+
+  /* Semantics */
+  --c1: var(--cyan);
+  --c2: #6688ff;
+  --c3: var(--green);
+  --c4: var(--amber);
+  --c5: var(--red);
+  --c6: #ff8800;
+  --c7: var(--purple);
+
+  /* Fonts */
+  --mono:'IBM Plex Mono',monospace;
+  --sans:'IBM Plex Sans',sans-serif;
+}
+
+/* ── Reset ─────────────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{
+  height:100%;overflow:hidden;
+  background:var(--bg0);
+  color:var(--ct);font-family:var(--sans);font-size:13px;
+}
+
+/* ── Animated background canvas ────────────────────────────── */
+#bg-canvas{
+  position:fixed;inset:0;width:100%;height:100%;
+  pointer-events:none;z-index:0;
+}
+/* Scanlines */
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:repeating-linear-gradient(
+    0deg,transparent,transparent 2px,
+    rgba(0,0,0,0.04) 2px,rgba(0,0,0,0.04) 4px
+  );
+}
+
+/* ── Topbar ─────────────────────────────────────────────────── */
+.topbar{
+  position:fixed;top:0;left:0;right:0;height:44px;z-index:100;
+  background:rgba(4,6,16,0.92);
+  border-bottom:1px solid var(--border2);
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+  display:flex;align-items:center;gap:0;padding:0 14px;
+  box-shadow:0 2px 30px rgba(0,240,255,0.06);
+}
+
+/* Logo */
+.logo{display:flex;align-items:center;gap:8px;margin-right:18px;flex-shrink:0;}
+.logo-hex{
+  width:26px;height:26px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--cyan),var(--purple));
+  clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:700;color:#000;font-family:var(--mono);
+}
+.logo-text{
+  font-family:var(--mono);font-size:13px;font-weight:600;
+  letter-spacing:3px;color:var(--cb);
+}
+.logo-text span{color:var(--cyan);}
+
+/* Tab nav */
+.layer-tabs{
+  display:flex;align-items:stretch;height:100%;flex:1;gap:1px;
+  overflow-x:auto;scrollbar-width:none;
+}
+.layer-tabs::-webkit-scrollbar{display:none;}
+
+.ltab{
+  display:flex;align-items:center;gap:5px;
+  padding:0 13px;font-size:10px;font-weight:500;
+  letter-spacing:1px;text-transform:uppercase;
+  color:var(--cd);cursor:pointer;white-space:nowrap;
+  border-bottom:2px solid transparent;
+  transition:color .15s,border-color .15s,background .15s;
+  position:relative;font-family:var(--mono);
+}
+.ltab:hover{color:var(--ct);background:rgba(0,240,255,0.04);}
+.ltab.active{color:var(--cyan);border-bottom-color:var(--cyan);}
+
+/* Per-tab active colors */
+.ltab[data-t="capture"].active   {color:var(--c1);border-bottom-color:var(--c1);}
+.ltab[data-t="protocol"].active  {color:var(--c2);border-bottom-color:var(--c2);}
+.ltab[data-t="discovery"].active {color:var(--c3);border-bottom-color:var(--c3);}
+.ltab[data-t="flows"].active     {color:var(--c4);border-bottom-color:var(--c4);}
+.ltab[data-t="topology"].active  {color:var(--c7);border-bottom-color:var(--c7);}
+.ltab[data-t="alerts"].active    {color:var(--c5);border-bottom-color:var(--c5);}
+.ltab[data-t="suricata"].active  {color:var(--c4);border-bottom-color:var(--c4);}
+.ltab[data-t="pihole"].active    {border-bottom-color:#00b4d8;}
+.ltab[data-t="settings"].active  {color:var(--cd);border-bottom-color:var(--cd);}
+.tdot{
+  width:6px;height:6px;border-radius:50%;
+  background:currentColor;opacity:.4;flex-shrink:0;
+  transition:opacity .2s;
+}
+/* Active tab dot pulses to show live data */
+.ltab.active .tdot{
+  opacity:1;
+  animation:blink-dot 1.8s ease-in-out infinite;
+}
+/* Per-tab dot colors when active */
+.ltab[data-t="dashboard"].active  .tdot{color:var(--cyan);}
+.ltab[data-t="capture"].active    .tdot{color:var(--c1);}
+.ltab[data-t="protocol"].active   .tdot{color:var(--c2);}
+.ltab[data-t="discovery"].active  .tdot{color:var(--c3);}
+.ltab[data-t="flows"].active      .tdot{color:var(--c4);}
+.ltab[data-t="topology"].active   .tdot{color:var(--purple);}
+.ltab[data-t="alerts"].active     .tdot{color:var(--red);}
+.ltab[data-t="suricata"].active   .tdot{color:var(--amber);}
+.ltab[data-t="pihole"].active     .tdot{color:#00b4d8;}
+.ltab[data-t="settings"].active   .tdot{color:var(--cd);animation:none;}
+
+/* Badge */
+.badge{
+  font-size:9px;font-family:var(--mono);padding:1px 5px;
+  background:var(--c5);color:#fff;border-radius:20px;margin-left:2px;
+}
+
+/* Topbar right */
+.topbar-right{
+  display:flex;align-items:center;gap:12px;flex-shrink:0;margin-left:10px;
+}
+.tm{font-family:var(--mono);font-size:9px;text-align:right;line-height:1.6;}
+.tl{color:var(--cd);letter-spacing:.5px;}
+.tv{color:var(--cyan);font-weight:600;font-size:11px;}
+
+/* Scan + live buttons */
+.btn-live{
+  padding:4px 12px;border:1px solid var(--c3);color:var(--c3);
+  background:rgba(0,255,136,.08);border-radius:3px;cursor:pointer;
+  font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:1px;
+  text-transform:uppercase;transition:all .2s;
+}
+.btn-live:hover{background:rgba(0,255,136,.16);box-shadow:0 0 12px rgba(0,255,136,.2);}
+.btn-live.off{border-color:var(--cd);color:var(--cd);background:transparent;}
+
+.btn-scan{
+  padding:4px 12px;border:1px solid var(--cyan);color:var(--cyan);
+  background:rgba(0,240,255,.07);border-radius:3px;cursor:pointer;
+  font-family:var(--mono);font-size:9px;font-weight:600;letter-spacing:1px;
+  text-transform:uppercase;transition:all .2s;
+}
+.btn-scan:hover{background:rgba(0,240,255,.15);box-shadow:0 0 14px rgba(0,240,255,.2);}
+
+/* Logout */
+.btn-logout{
+  padding:4px 10px;border:1px solid rgba(0,240,255,.2);color:var(--cd);
+  background:transparent;border-radius:3px;cursor:pointer;
+  font-family:var(--mono);font-size:9px;letter-spacing:1px;text-transform:uppercase;
+  transition:all .2s;
+}
+.btn-logout:hover{border-color:var(--red);color:var(--red);}
+
+/* ── Content area ────────────────────────────────────────────── */
+.content{
+  position:fixed;top:44px;left:0;right:0;bottom:0;
+  z-index:10;overflow:hidden;
+  display:flex;flex-direction:column;
+  padding:12px;gap:8px;
+}
+
+/* ── Tab panels ─────────────────────────────────────────────── */
+.tpanel{
+  display:none;flex-direction:column;gap:8px;
+  flex:1;min-height:0;overflow-y:auto;
+  animation:tabIn .18s ease;
+}
+.tpanel.active{display:flex;}
+@keyframes tabIn{
+  from{opacity:0;transform:translateY(4px);}
+  to  {opacity:1;transform:translateY(0);}
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{
+  background:rgba(0,240,255,.2);border-radius:2px;
+}
+::-webkit-scrollbar-thumb:hover{background:rgba(0,240,255,.4);}
+
+/* ── GLASS CARDS ─────────────────────────────────────────────── */
+.card{
+  background:var(--glass);
+  border:1px solid var(--border2);
+  border-radius:6px;
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+  flex-shrink:0;
+  box-shadow:0 4px 24px rgba(0,0,0,.4),
+             inset 0 1px 0 rgba(0,240,255,.05);
+  transition:box-shadow .2s;
+}
+.card:hover{
+  box-shadow:0 4px 28px rgba(0,0,0,.5),
+             0 0 0 1px rgba(0,240,255,.08),
+             inset 0 1px 0 rgba(0,240,255,.07);
+}
+
+.ch{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 12px;border-bottom:1px solid var(--border);
+  flex-shrink:0;flex-wrap:wrap;
+}
+.cb-body{padding:10px 12px;}
+.ct-label{
+  font-family:var(--mono);font-size:10px;font-weight:600;
+  letter-spacing:2px;text-transform:uppercase;color:var(--ct);
+}
+.sbar{display:flex;align-items:center;gap:6px;margin-left:auto;flex-wrap:wrap;}
+
+/* ── Stat grids ──────────────────────────────────────────────── */
+.sgrid{
+  display:grid;gap:8px;flex-shrink:0;
+}
+.sg3{grid-template-columns:repeat(3,1fr);}
+.sg4{grid-template-columns:repeat(4,1fr);}
+.sg5{grid-template-columns:repeat(5,1fr);}
+.sg6{grid-template-columns:repeat(6,1fr);}
+
+.scell{
+  background:var(--glass);
+  border:1px solid var(--border2);
+  border-radius:6px;padding:10px 14px;
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+  box-shadow:inset 0 1px 0 rgba(0,240,255,.04);
+}
+.sl{
+  font-size:9px;letter-spacing:2px;text-transform:uppercase;
+  color:var(--cd);font-family:var(--mono);margin-bottom:4px;
+}
+.sv{
+  font-family:var(--mono);font-size:22px;font-weight:600;color:var(--cb);
+}
+.sv.c1{color:var(--cyan);}
+.sv.c2{color:var(--c2);}
+.sv.c3{color:var(--green);}
+.sv.c4{color:var(--amber);}
+.sv.c5{color:var(--red);}
+
+/* ── Row layouts ─────────────────────────────────────────────── */
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex-shrink:0;}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;flex-shrink:0;}
+
+/* ── Chips / buttons ─────────────────────────────────────────── */
+.chip{
+  padding:3px 10px;border:1px solid var(--border2);
+  color:var(--cd);background:transparent;border-radius:3px;
+  cursor:pointer;font-family:var(--mono);font-size:9px;
+  font-weight:500;letter-spacing:1px;text-transform:uppercase;
+  text-decoration:none;display:inline-flex;align-items:center;
+  white-space:nowrap;transition:all .15s;
+}
+.chip:hover{
+  color:var(--cyan);border-color:rgba(0,240,255,.35);
+  background:rgba(0,240,255,.06);
+  box-shadow:0 0 8px rgba(0,240,255,.1);
+}
+.chip.on{
+  color:var(--cyan);border-color:rgba(0,240,255,.4);
+  background:rgba(0,240,255,.08);
+}
+.chip.c2.on{color:var(--c2);border-color:var(--c2);background:rgba(102,136,255,.08);}
+.chip.c3.on{color:var(--c3);border-color:var(--c3);background:rgba(0,255,136,.08);}
+.chip.c4.on{color:var(--c4);border-color:var(--c4);background:rgba(255,170,0,.08);}
+.chip.c5.on{color:var(--c5);border-color:var(--c5);background:rgba(255,40,85,.08);}
+
+/* Modal actions */
+.btn-save{
+  padding:7px 20px;border:1px solid var(--cyan);
+  color:var(--cyan);background:rgba(0,240,255,.07);
+  border-radius:3px;cursor:pointer;font-family:var(--mono);
+  font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;
+  transition:all .2s;
+}
+.btn-save:hover{background:rgba(0,240,255,.15);box-shadow:0 0 16px rgba(0,240,255,.2);}
+.btn-cancel{
+  padding:7px 20px;border:1px solid var(--border2);
+  color:var(--cd);background:transparent;border-radius:3px;
+  cursor:pointer;font-family:var(--mono);font-size:10px;
+  letter-spacing:1px;text-transform:uppercase;transition:all .2s;
+}
+.btn-cancel:hover{color:var(--ct);border-color:var(--ct);}
+.mactions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;}
+
+/* ── Inputs ──────────────────────────────────────────────────── */
+.sinput{
+  background:rgba(0,240,255,.04);
+  border:1px solid rgba(0,240,255,.12);
+  color:var(--ct);padding:4px 9px;border-radius:3px;
+  font-family:var(--mono);font-size:11px;outline:none;
+  transition:border-color .2s,box-shadow .2s;
+}
+.sinput:focus{
+  border-color:rgba(0,240,255,.35);
+  box-shadow:0 0 10px rgba(0,240,255,.08);
+}
+.sinput::placeholder{color:var(--cd);}
+input[type=range]{accent-color:var(--cyan);}
+input[type=checkbox]{accent-color:var(--cyan);}
+input[type=text],input[type=password],select{
+  background:rgba(0,240,255,.04);
+  border:1px solid rgba(0,240,255,.12);
+  color:var(--ct);padding:7px 10px;border-radius:3px;
+  font-family:var(--mono);font-size:12px;outline:none;
+  transition:border-color .2s,box-shadow .2s;
+}
+input[type=text]:focus,input[type=password]:focus,select:focus{
+  border-color:rgba(0,240,255,.35);
+  box-shadow:0 0 12px rgba(0,240,255,.08);
+}
+select option{background:var(--bg-solid);color:var(--ct);}
+
+/* Toggle */
+.toggle-wrap{display:flex;align-items:center;gap:10px;}
+.toggle{
+  position:relative;width:38px;height:20px;
+  display:inline-block;cursor:pointer;
+}
+.toggle input{opacity:0;width:0;height:0;}
+.toggle-track{
+  position:absolute;inset:0;background:rgba(0,240,255,.1);
+  border:1px solid var(--border2);border-radius:20px;
+  transition:all .2s;
+}
+.toggle input:checked + .toggle-track{
+  background:rgba(0,240,255,.2);border-color:var(--cyan);
+}
+.toggle-knob{
+  position:absolute;top:2px;left:2px;
+  width:14px;height:14px;border-radius:50%;
+  background:var(--cd);transition:all .2s;
+}
+.toggle input:checked ~ .toggle-knob{
+  transform:translateX(18px);background:var(--cyan);
+  box-shadow:0 0 6px var(--cyan);
+}
+
+/* ── Tables ──────────────────────────────────────────────────── */
+.dt{
+  width:100%;border-collapse:collapse;
+  font-size:11px;font-family:var(--mono);
+}
+.dt th{
+  padding:6px 10px;text-align:left;
+  color:var(--cd);font-size:9px;letter-spacing:1.5px;
+  text-transform:uppercase;font-weight:500;
+  border-bottom:1px solid var(--border);
+  position:sticky;top:0;background:rgba(6,8,20,.9);
+  backdrop-filter:blur(8px);
+}
+.dt td{
+  padding:5px 10px;border-bottom:1px solid rgba(0,240,255,.04);
+  color:var(--ct);
+}
+.dt tr:hover td{background:rgba(0,240,255,.04);}
+.mono{font-family:var(--mono);}
+.dim{color:var(--cd);}
+
+/* ── Packet stream ───────────────────────────────────────────── */
+.pstream{overflow-y:auto;font-family:var(--mono);font-size:10px;}
+.phdr{
+  display:grid;
+  grid-template-columns:70px 105px 105px 45px 45px 55px 55px 1fr;
+  gap:4px;padding:5px 10px;
+  color:var(--cd);font-size:9px;letter-spacing:1px;text-transform:uppercase;
+  border-bottom:1px solid var(--border);
+  position:sticky;top:0;background:rgba(6,8,20,.9);
+}
+.prow{
+  display:grid;
+  grid-template-columns:70px 105px 105px 45px 45px 55px 55px 1fr;
+  gap:4px;padding:4px 10px;border-bottom:1px solid rgba(0,240,255,.03);
+  transition:background .1s;cursor:default;
+}
+.prow:hover{background:rgba(0,240,255,.04);}
+.prow span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.plbl{
+  padding:1px 5px;border-radius:2px;font-size:9px;
+  font-weight:600;letter-spacing:.5px;
+}
+.plbl.TCP{background:rgba(0,240,255,.12);color:var(--cyan);}
+.plbl.UDP{background:rgba(102,136,255,.12);color:var(--c2);}
+.plbl.DNS{background:rgba(0,255,136,.10);color:var(--green);}
+.plbl.ARP{background:rgba(255,170,0,.10);color:var(--amber);}
+.plbl.TLS,.plbl.HTTPS{background:rgba(153,69,255,.12);color:var(--purple);}
+.plbl.HTTP{background:rgba(255,40,85,.10);color:var(--red);}
+.plbl.ICMP{background:rgba(255,136,0,.10);color:var(--c6);}
+
+/* ── Alert cards ─────────────────────────────────────────────── */
+.alert-card{
+  background:var(--glass2);
+  border:1px solid var(--border);
+  border-radius:5px;padding:10px 12px;margin-bottom:6px;
+  transition:background .15s,border-color .15s;
+}
+.alert-card:hover{background:rgba(10,16,36,.7);border-color:var(--border2);}
+.alert-card.dismissed{opacity:.4;}
+.alert-card.sev-critical{border-left:3px solid var(--red);}
+.alert-card.sev-high    {border-left:3px solid var(--amber);}
+.alert-card.sev-warning {border-left:3px solid #ff8800;}
+.alert-card.sev-info    {border-left:3px solid var(--cyan);}
+
+.sev-badge{
+  padding:2px 7px;border-radius:3px;font-family:var(--mono);
+  font-size:9px;font-weight:700;letter-spacing:1px;
+  text-transform:uppercase;
+}
+.sev-badge.critical{background:rgba(255,40,85,.15);color:var(--red);border:1px solid rgba(255,40,85,.3);}
+.sev-badge.high    {background:rgba(255,170,0,.15);color:var(--amber);border:1px solid rgba(255,170,0,.3);}
+.sev-badge.warning {background:rgba(255,136,0,.13);color:#ff8800;border:1px solid rgba(255,136,0,.3);}
+.sev-badge.info    {background:rgba(0,240,255,.1);color:var(--cyan);border:1px solid rgba(0,240,255,.2);}
+.cat-badge{
+  padding:2px 7px;border-radius:3px;font-family:var(--mono);
+  font-size:9px;letter-spacing:.5px;
+  background:rgba(153,69,255,.1);color:var(--purple);border:1px solid rgba(153,69,255,.2);
+}
+
+/* ── Event log row ───────────────────────────────────────────── */
+.elog-row{
+  display:flex;align-items:flex-start;gap:8px;
+  padding:5px 10px;border-bottom:1px solid rgba(0,240,255,.04);
+  animation:fin .2s ease;font-size:11px;font-family:var(--mono);
+}
+.elog-row:hover{background:rgba(0,240,255,.03);}
+.ets{color:var(--cd);font-size:9px;min-width:55px;flex-shrink:0;margin-top:1px;}
+@keyframes fin{from{opacity:0;transform:translateX(-4px);}to{opacity:1;transform:none;}}
+
+/* ── Progress bars ───────────────────────────────────────────── */
+.pbar{margin-bottom:7px;}
+.pbh{display:flex;justify-content:space-between;margin-bottom:3px;font-size:10px;}
+.pbn{font-family:var(--mono);}
+.pbp{color:var(--cd);font-size:9px;}
+.pbt{height:3px;background:rgba(0,240,255,.08);border-radius:2px;overflow:hidden;}
+.pbf{height:100%;border-radius:2px;transition:width .6s ease;background:var(--cyan);}
+
+/* Talker rows */
+.trow{display:flex;align-items:center;gap:8px;padding:4px 10px;font-size:11px;}
+.trow:hover{background:rgba(0,240,255,.04);}
+.trank{
+  width:16px;text-align:center;font-family:var(--mono);
+  font-size:9px;color:var(--cd);flex-shrink:0;
+}
+.tbar{flex:1;height:3px;background:rgba(0,240,255,.08);border-radius:2px;overflow:hidden;}
+.tfill{height:100%;border-radius:2px;}
+.tval{font-family:var(--mono);font-size:10px;color:var(--ct);min-width:52px;text-align:right;}
+
+/* ── Topo legend ─────────────────────────────────────────────── */
+.topo-legend{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.topo-leg-item{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--cd);}
+.topo-leg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+/* ── Modals ──────────────────────────────────────────────────── */
+.mover{
+  display:none;position:fixed;inset:0;z-index:200;
+  background:rgba(0,0,0,.7);
+  backdrop-filter:blur(4px);
+  align-items:center;justify-content:center;
+}
+.mover.open{display:flex;}
+.modal{
+  background:rgba(6,9,22,.95);
+  border:1px solid var(--border2);
+  border-radius:7px;padding:26px 28px;
+  min-width:360px;max-width:92vw;max-height:88vh;overflow-y:auto;
+  box-shadow:0 20px 60px rgba(0,0,0,.8),0 0 0 1px rgba(0,240,255,.06);
+  backdrop-filter:var(--blur);
+}
+.modal h3{
+  font-family:var(--mono);font-size:13px;font-weight:600;
+  letter-spacing:2px;text-transform:uppercase;
+  color:var(--cyan);margin-bottom:14px;
+}
+.mf{margin-bottom:14px;}
+.mf label{
+  display:block;font-family:var(--mono);font-size:9px;
+  letter-spacing:2px;text-transform:uppercase;
+  color:var(--cd);margin-bottom:6px;
+}
+.mf input,.mf select{width:100%;}
+.mf code{
+  font-family:var(--mono);font-size:11px;
+  color:var(--cyan);background:rgba(0,240,255,.07);
+  padding:1px 6px;border-radius:2px;
+}
+
+/* ── Resizable ───────────────────────────────────────────────── */
+.resizable{resize:vertical;overflow:auto;}
+
+/* ── Misc ────────────────────────────────────────────────────── */
+a{color:var(--cyan);text-decoration:none;}
+a:hover{text-decoration:underline;}
+code{font-family:var(--mono);font-size:10px;color:var(--cyan);
+  background:rgba(0,240,255,.07);padding:1px 5px;border-radius:2px;}
+
+/* ── Alert feed (restored v23 style) ───────────────────────── */
+.alert-item{
+  background:var(--glass2);
+  border:1px solid var(--border);
+  border-left:3px solid var(--border2);
+  border-radius:5px;padding:10px 13px;margin-bottom:6px;
+  position:relative;transition:background .15s,border-color .15s;
+  animation:fin .2s ease;
+}
+.alert-item:hover{background:rgba(10,16,36,.72);border-color:var(--border2);}
+.alert-item.dismissed{opacity:.38;}
+.alert-item.critical{border-left-color:var(--red);}
+.alert-item.high    {border-left-color:var(--amber);}
+.alert-item.warning {border-left-color:#ff8800;}
+.alert-item.info    {border-left-color:var(--cyan);}
+
+.ai-dismiss{
+  position:absolute;top:8px;right:10px;
+  background:none;border:none;color:var(--cd);
+  cursor:pointer;font-size:14px;line-height:1;padding:2px 5px;
+  transition:color .15s;
+}
+.ai-dismiss:hover{color:var(--ct);}
+
+.ai-head{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:4px;}
+.ai-title{font-weight:500;color:var(--cb);font-size:12px;flex:1;}
+.ai-time{font-family:var(--mono);font-size:9px;color:var(--cd);margin-left:auto;}
+.ai-detail{font-size:11px;color:var(--ct);line-height:1.5;margin-bottom:3px;}
+.ai-meta{font-family:var(--mono);font-size:10px;color:var(--cd);}
+
+.pill{
+  padding:2px 7px;border-radius:3px;
+  font-family:var(--mono);font-size:9px;font-weight:700;
+  letter-spacing:.8px;text-transform:uppercase;
+  background:rgba(255,255,255,.05);color:var(--cd);
+}
+.pill-critical{background:rgba(255,40,85,.14);color:var(--red);border:1px solid rgba(255,40,85,.25);}
+.pill-high    {background:rgba(255,170,0,.14);color:var(--amber);border:1px solid rgba(255,170,0,.25);}
+.pill-warning {background:rgba(255,136,0,.12);color:#ff8800;border:1px solid rgba(255,136,0,.25);}
+.pill-info    {background:rgba(0,240,255,.1);color:var(--cyan);border:1px solid rgba(0,240,255,.2);}
+
+/* ── Top talkers (restored v23 bar style) ───────────────────── */
+.trow{display:flex;align-items:center;gap:8px;padding:4px 10px;font-size:11px;}
+.trow:hover{background:rgba(0,240,255,.04);}
+.trank{width:18px;text-align:center;font-family:var(--mono);font-size:9px;color:var(--cd);flex-shrink:0;}
+.tip{font-family:var(--mono);font-size:11px;color:var(--cyan);width:130px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;}
+.tbar{flex:1;height:3px;background:rgba(0,240,255,.08);border-radius:2px;overflow:hidden;}
+.tfill{height:100%;border-radius:2px;background:var(--cyan);}
+.tval{font-family:var(--mono);font-size:10px;color:var(--ct);min-width:54px;text-align:right;}
+
+/* ── Event log row (restored) ───────────────────────────────── */
+.elog-row{
+  display:flex;align-items:flex-start;gap:8px;
+  padding:5px 10px;border-bottom:1px solid rgba(0,240,255,.04);
+  animation:fin .2s ease;font-size:11px;font-family:var(--mono);
+}
+.elog-row:hover{background:rgba(0,240,255,.03);}
+.ets{color:var(--cd);font-size:9px;min-width:58px;flex-shrink:0;margin-top:1px;}
+.etype{font-size:10px;width:62px;flex-shrink:0;}
+.etype.joined{color:var(--green);}
+.etype.left  {color:var(--red);}
+.etype.scan  {color:var(--cyan);}
+.etype.alert {color:var(--amber);}
+.ebod{flex:1;color:var(--ct);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+/* ── Global filter bar ──────────────────────────────────────── */
+#global-filter-wrap{
+  display:flex;align-items:center;gap:6px;
+  padding:0 8px;border-left:1px solid var(--border);
+  margin-left:4px;flex-shrink:0;
+}
+#global-filter{
+  background:rgba(0,240,255,.05);
+  border:1px solid rgba(0,240,255,.15);
+  color:var(--ct);padding:3px 28px 3px 9px;
+  border-radius:3px;font-family:var(--mono);font-size:10px;
+  outline:none;width:160px;
+  transition:border-color .2s,box-shadow .2s,width .2s;
+}
+#global-filter:focus{
+  border-color:rgba(0,240,255,.4);width:200px;
+  box-shadow:0 0 10px rgba(0,240,255,.1);
+}
+#global-filter::placeholder{color:var(--cd);}
+#global-filter-clear{
+  position:absolute;right:10px;background:none;border:none;
+  color:var(--cd);cursor:pointer;font-size:12px;padding:2px;
+  transition:color .15s;display:none;
+}
+#global-filter-clear:hover{color:var(--red);}
+.gf-wrap{position:relative;}
+.gf-label{font-family:var(--mono);font-size:9px;color:var(--cd);letter-spacing:1px;white-space:nowrap;}
+
+
+/* ── Live / status indicators ─────────────────────────────── */
+.live  { color: var(--green); }
+.out   { color: var(--red);   }
+.scanning { animation: pulse-scan 1s ease-in-out infinite; }
+@keyframes pulse-scan { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+
+/* ── WebSocket status pill ──────────────────────────────────── */
+.ws-pill {
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 10px;border-radius:20px;
+  font-family:var(--mono);font-size:9px;font-weight:600;
+  letter-spacing:.8px;text-transform:uppercase;
+  background:rgba(255,40,85,.08);border:1px solid rgba(255,40,85,.25);
+  color:var(--red);transition:all .3s;
+}
+.ws-pill.live {
+  background:rgba(255,40,85,.12);border-color:rgba(255,40,85,.4);
+  color:var(--red);
+  box-shadow:0 0 10px rgba(255,40,85,.15);
+}
+.ws-pill.off {
+  background:rgba(80,80,80,.1);border-color:rgba(80,80,80,.2);
+  color:var(--cd);
+}
+/* The blinking dot inside ws-pill */
+.wdot {
+  display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:currentColor;flex-shrink:0;
+}
+.ws-pill.live .wdot {
+  background:var(--red);
+  animation:blink-dot 1.2s ease-in-out infinite;
+  box-shadow:0 0 6px var(--red);
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE
+   ══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px){
+  /* ── Topbar ─────────────────────────────────────────────── */
+  .topbar{
+    flex-wrap:nowrap;height:44px;padding:0 8px;gap:6px;
+  }
+  #hamburger{ display:flex !important;order:-1; }
+  .layer-tabs{ display:none; }
+  #global-filter-wrap{ display:none; }
+  .topbar-right{ gap:6px;margin-left:auto; }
+  .tm{ display:none; }
+  .btn-scan{ display:none; }
+
+  /* ── Content area: scrollable, not clipped ───────────────── */
+  .content{
+    top:44px;
+    overflow-y:auto;      /* key: allow the whole page to scroll */
+    overflow-x:hidden;
+    padding:8px;gap:8px;
+  }
+
+  /* ── Panels: natural height, not flex-fill ───────────────── */
+  .tpanel{
+    flex:none;            /* stop panels from trying to fill the viewport */
+    overflow-y:visible;   /* panels themselves don't clip — content scrolls */
+    height:auto;
+  }
+
+  /* ── Grids: 2-col on mobile ──────────────────────────────── */
+  .sg6{ grid-template-columns:repeat(2,1fr); }
+  .sg5{ grid-template-columns:repeat(2,1fr); }
+  .sg4{ grid-template-columns:repeat(2,1fr); }
+  .sg3{ grid-template-columns:1fr 1fr; }
+  .row2{ grid-template-columns:1fr; gap:8px; }
+  .row3{ grid-template-columns:1fr; gap:8px; }
+
+  /* ── Cards: natural height, no collapsing ────────────────── */
+  .card{ flex-shrink:0; }
+  .cb-body{ padding:8px 10px; }
+  .ch{ padding:6px 10px;flex-wrap:wrap;gap:6px; }
+  .sbar{ flex-wrap:wrap;gap:4px; }
+
+  /* ── Override any fixed heights set inline ───────────────── */
+  /* Packet stream */
+  #pkt-stream{ height:280px !important; }
+  /* Incident list */
+  #incident-list{ height:auto !important;max-height:220px; }
+  /* Charts */
+  #bw-chart{ height:100px !important; }
+  /* Any resizable element: override inline resize style */
+  .resizable{ resize:none !important;height:auto !important; }
+
+  /* ── Tables ──────────────────────────────────────────────── */
+  .dt{ font-size:10px; }
+  .dt td,.dt th{ padding:5px 7px;white-space:nowrap; }
+  /* Wrap table containers to scroll horizontally */
+  .card > div[style*="overflow-y"],
+  .card > div[style*="max-height"]{ overflow-x:auto; }
+
+  /* ── Packet row: 4 columns only ─────────────────────────── */
+  .phdr,.prow{ grid-template-columns:58px 90px 1fr 48px; }
+  .phdr > span:nth-child(n+5),
+  .prow > span:nth-child(n+5){ display:none; }
+
+  /* ── Modals ──────────────────────────────────────────────── */
+  .modal{ min-width:unset;width:96vw;padding:14px 12px;max-height:85vh; }
+
+  /* ── Chips / buttons ─────────────────────────────────────── */
+  .chip{ padding:4px 10px;font-size:9px; }
+  .btn-save,.btn-cancel{ padding:8px 14px; }
+
+  /* ── Toasts: full width ──────────────────────────────────── */
+  #toasts{ left:8px;right:8px;bottom:12px;max-width:unset; }
+}
+
+@media (max-width: 480px){
+  /* ── Very small phones ───────────────────────────────────── */
+  .sg6{ grid-template-columns:repeat(2,1fr); }
+  .sg3{ grid-template-columns:1fr 1fr; }
+  .sg4{ grid-template-columns:1fr 1fr; }
+  .logo-text{ font-size:12px; letter-spacing:2px; }
+
+  /* Health donut cell: smaller */
+  #d-health-ring ~ div .sv{ font-size:16px; }
+
+  /* Nav drawer items: compact */
+  .mobile-tab{ padding:10px 14px; font-size:11px; }
+
+  /* Toasts: full width at bottom */
+  #toasts{ left:8px; right:8px; max-width:unset; }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   LIVE BLINKING DOT
+   ══════════════════════════════════════════════════════════════ */
+@keyframes blink-dot {
+  0%,100% { opacity:1; box-shadow:0 0 0 0 currentColor; }
+  50%     { opacity:.3; box-shadow:0 0 0 4px transparent; }
+}
+@keyframes blink-pulse {
+  0%   { box-shadow:0 0 0 0 rgba(0,255,136,.6); }
+  70%  { box-shadow:0 0 0 6px rgba(0,255,136,0); }
+  100% { box-shadow:0 0 0 0 rgba(0,255,136,0); }
+}
+.live-dot {
+  display:inline-block;width:6px;height:6px;border-radius:50%;
+  background:currentColor;margin-right:5px;flex-shrink:0;
+  animation:blink-dot 1.4s ease-in-out infinite;
+}
+.live-dot.cyan { color:var(--cyan); animation:blink-dot 1.4s ease-in-out infinite, blink-pulse 1.4s ease-in-out infinite; }
+.live-dot.green { color:var(--green); }
+.live-dot.red   { color:var(--red); animation:blink-dot .8s ease-in-out infinite; }
+
+/* LIVE button pulse */
+.btn-live:not(.off)::before {
+  content:'';display:inline-block;
+  width:6px;height:6px;border-radius:50%;
+  background:var(--green);margin-right:6px;
+  animation:blink-dot 1.4s ease-in-out infinite;
+  vertical-align:middle;
+}
+/* Pi-hole status dot pulse when active */
+#ph-dot[style*="00b4d8"] {
+  animation:blink-dot 2s ease-in-out infinite !important;
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   FIX 1: NAV TAB DOT — blinking animation on active tab
+   ══════════════════════════════════════════════════════════════ */
+.ltab.active .tdot {
+  animation: blink-dot 2s ease-in-out infinite;
+  opacity: 1;
+}
+/* Colour the dot to match each tab's accent */
+.ltab[data-t="dashboard"].active  .tdot { color: var(--cyan);   background: var(--cyan); }
+.ltab[data-t="capture"].active    .tdot { color: var(--c1);     background: var(--c1); }
+.ltab[data-t="protocol"].active   .tdot { color: var(--c2);     background: var(--c2); }
+.ltab[data-t="discovery"].active  .tdot { color: var(--c3);     background: var(--c3); }
+.ltab[data-t="flows"].active      .tdot { color: var(--c4);     background: var(--c4); }
+.ltab[data-t="topology"].active   .tdot { color: var(--purple); background: var(--purple); }
+.ltab[data-t="alerts"].active     .tdot { color: var(--red);    background: var(--red); }
+.ltab[data-t="suricata"].active   .tdot { color: var(--amber);  background: var(--amber); }
+.ltab[data-t="pihole"].active     .tdot { color: #00b4d8;       background: #00b4d8; }
+.ltab[data-t="settings"].active   .tdot { color: var(--cd);     background: var(--cd); }
+
+/* ══════════════════════════════════════════════════════════════
+   FIX 2: TOASTS — fixed position, proper z-index, full styling
+   ══════════════════════════════════════════════════════════════ */
+#toasts {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+  max-width: 320px;
+}
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 14px;
+  background: rgba(8, 12, 28, 0.95);
+  border: 1px solid var(--border2);
+  border-left: 3px solid var(--cyan);
+  border-radius: 5px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 8px 32px rgba(0,0,0,.6), 0 0 20px rgba(0,240,255,.06);
+  pointer-events: auto;
+  animation: toastIn .25s ease;
+  transition: opacity .25s, transform .25s;
+}
+.toast.out {
+  opacity: 0;
+  transform: translateX(20px);
+}
+.toast.joined { border-left-color: var(--green); }
+.toast.left   { border-left-color: var(--red); }
+.toast.alert-critical { border-left-color: var(--red); }
+.toast.alert-high     { border-left-color: var(--amber); }
+.toast.alert-warning  { border-left-color: #ff8800; }
+@keyframes toastIn {
+  from { opacity:0; transform:translateX(20px); }
+  to   { opacity:1; transform:translateX(0); }
+}
+.ti  { font-size: 18px; flex-shrink: 0; line-height: 1.2; }
+.tt  { font-family: var(--mono); font-size: 11px; font-weight: 600;
+       color: var(--cb); letter-spacing: .5px; }
+.td2 { font-family: var(--mono); font-size: 10px; color: var(--cd);
+       margin-top: 2px; }
+
+/* ══════════════════════════════════════════════════════════════
+   FIX 3: MOBILE — complete rewrite
+   ══════════════════════════════════════════════════════════════ */
+
+/* Hamburger button — hidden on desktop */
+#hamburger {
+  display: none;            /* hidden on desktop */
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border2);
+  color: var(--ct);
+  border-radius: 4px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+  min-width: 38px;
+  min-height: 32px;
+  z-index: 101;             /* above topbar content */
+  transition: background .15s, border-color .15s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+#hamburger:hover, #hamburger:active {
+  background: rgba(0,240,255,.1);
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+#hamburger:hover { border-color: var(--cyan); color: var(--cyan); }
+
+/* Mobile nav drawer */
+#mobile-nav {
+  display: none;
+  position: fixed;
+  top: 44px;
+  left: 0; right: 0;
+  bottom: 0;            /* full height overlay */
+  z-index: 150;
+  background: rgba(3, 4, 14, 0.97);
+  border-top: 1px solid var(--border2);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  flex-direction: column;
+  padding: 6px 0 20px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.7);
+  overflow-y: auto;
+}
+#mobile-nav.open { display: flex; }
+/* Backdrop tap-to-close overlay */
+#mobile-nav-backdrop {
+  display: none;
+  position: fixed;
+  inset: 44px 0 0 0;
+  z-index: 149;
+  background: rgba(0,0,0,.4);
+}
+#mobile-nav-backdrop.open { display: block; }
+.mobile-tab {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 20px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  color: var(--cd);
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: all .15s;
+  min-height: 48px;  /* touch-friendly */
+}
+.mobile-tab:hover { background: rgba(0,240,255,.05); color: var(--ct); }
+.mobile-tab.active {
+  color: var(--cyan);
+  border-left-color: var(--cyan);
+  background: rgba(0,240,255,.06);
+}
+.mobile-tab .mdot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: currentColor; flex-shrink: 0;
+}
+.mobile-tab.active .mdot { animation: blink-dot 2s ease-in-out infinite; }
+.mobile-tab-label { flex: 1; }
+.mobile-tab .mbadge {
+  font-size: 9px; padding: 1px 5px;
+  background: var(--c5); color: #fff;
+  border-radius: 20px;
+}
+
+/* Mobile filter bar */
+#mobile-filter {
+  display: none;
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+  background: rgba(4,6,16,.95);
+}
+#mobile-filter input {
+  width: 100%;
+  padding: 7px 30px 7px 10px;
+}
+
+@media (max-width: 768px) {
+  /* Hide desktop nav, show hamburger */
+  .layer-tabs      { display: none; }
+  .topbar-right .tm  { display: none; }
+  #global-filter-wrap { display: none; }
+  #hamburger       { display: block; }
+
+  /* Compact topbar */
+  .topbar {
+    height: 48px;
+    padding: 0 10px;
+    gap: 8px;
+    flex-wrap: nowrap;
+    position: fixed;
+  }
+  .logo-text { font-size: 13px; letter-spacing: 2px; }
+
+  /* Content starts below fixed topbar */
+  .content {
+    top: 48px;
+    padding: 8px;
+    gap: 8px;
+  }
+
+  /* Stat grids → 2 columns on phones */
+  .sg6 { grid-template-columns: repeat(2, 1fr); }
+  .sg5 { grid-template-columns: repeat(2, 1fr); }
+  .sg4 { grid-template-columns: repeat(2, 1fr); }
+  .sg3 { grid-template-columns: repeat(2, 1fr); }
+  .row2 { grid-template-columns: 1fr; }
+  .row3 { grid-template-columns: 1fr; }
+
+  /* Cards — tighter padding */
+  .ch { padding: 7px 10px; }
+  .cb-body { padding: 8px 10px; }
+
+  /* Tables — horizontal scroll within card */
+  .dt { font-size: 10px; min-width: 500px; }
+  .dt td, .dt th { padding: 4px 7px; }
+  div[style*="overflow-y:auto"] { overflow-x: auto; }
+  .resizable { overflow: auto; }
+
+  /* Packet stream grid — minimal columns */
+  .phdr, .prow {
+    grid-template-columns: 55px 85px 85px 38px 1fr;
+  }
+  /* Hide sport, dport on small screen */
+  .phdr span:nth-child(6), .prow span:nth-child(6),
+  .phdr span:nth-child(7), .prow span:nth-child(7) { display: none; }
+
+  /* Modals → full-width */
+  .modal { min-width: unset; width: calc(100vw - 24px); max-height: 85vh; padding: 16px; }
+
+  /* Toasts → bottom-center */
+  #toasts { right: 10px; left: 10px; max-width: 100%; bottom: 12px; }
+
+  /* Topbar right — compact */
+  .btn-scan { padding: 4px 8px; font-size: 8px; }
+  .btn-logout { padding: 4px 8px; font-size: 8px; }
+  .ws-pill { font-size: 8px; padding: 2px 6px; }
+
+  /* Chip buttons — slightly larger tap targets */
+  .chip { padding: 5px 10px; font-size: 9px; }
+
+  /* Health score donut — smaller on mobile */
+  .scell svg { width: 40px; height: 40px; }
+}
+
+@media (max-width: 420px) {
+  .sg6, .sg5 { grid-template-columns: repeat(2, 1fr); }
+  .sg3 { grid-template-columns: 1fr 1fr; }
+  .topbar { padding: 0 8px; }
+  .logo-text { letter-spacing: 1px; }
+  .btn-scan { display: none; } /* hide scan on very small — accessible via settings */
+}
+
+</style>
+  <!-- Anti-FOUC: hide non-active panels before first paint -->
+  <style>
+    .tpanel:not(.active){ display:none !important; }
+  </style>
+</head>
+<body>
+
+<!-- Animated cyberpunk background -->
+<canvas id="bg-canvas"></canvas>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <!-- Hamburger: first in DOM so it is leftmost on mobile -->
+  <button id="hamburger" onclick="toggleMobileNav()" aria-label="Menu">☰</button>
+  <div class="logo" onclick="tab('dashboard')" style="cursor:pointer" title="Go to Dashboard">
+    <div class="logo-hex">N</div>
+    <div class="logo-text">NET<span>WATCH</span></div>
+  </div>
+  <!-- Desktop tab strip (hidden on mobile, replaced by drawer) -->
+  <div class="layer-tabs">
+    <div class="ltab active" data-t="dashboard"  onclick="tab('dashboard')" ><span class="tdot"></span>Dashboard</div>
+    <div class="ltab" data-t="capture"            onclick="tab('capture')"  ><span class="tdot"></span>L1 Capture</div>
+    <div class="ltab" data-t="protocol"           onclick="tab('protocol')" ><span class="tdot"></span>L2 Protocol</div>
+    <div class="ltab" data-t="discovery"          onclick="tab('discovery')"><span class="tdot"></span>L3 Discovery</div>
+    <div class="ltab" data-t="flows"              onclick="tab('flows')"    ><span class="tdot"></span>L4 Flows</div>
+    <div class="ltab" data-t="topology"           onclick="tab('topology')" ><span class="tdot"></span>Topology</div>
+    <div class="ltab" data-t="alerts"             onclick="tab('alerts')"   ><span class="tdot"></span>Alerts<span class="badge" id="alert-badge">0</span></div>
+    <div class="ltab" data-t="suricata"           onclick="tab('suricata')" ><span class="tdot" style="background:var(--c4)"></span>⚡ Suricata<span class="badge" id="sur-badge" style="display:none;background:var(--c4)">0</span></div>
+    <div class="ltab" data-t="pihole"            onclick="tab('pihole')"   ><span class="tdot" style="background:#00b4d8"></span>🔵 Pi-hole</div>
+    <div class="ltab" data-t="settings"           onclick="tab('settings')" ><span class="tdot"></span>⚙ Settings</div>
+  </div>
+  <!-- Global IP/MAC sync filter -->
+  <div id="global-filter-wrap">
+    <span class="gf-label">🔍 FILTER:</span>
+    <div class="gf-wrap">
+      <input type="text" id="global-filter"
+             placeholder="IP or MAC…"
+             oninput="globalFilterChange()"
+             onkeydown="if(event.key==='Escape'){this.value='';globalFilterChange();}">
+      <button id="global-filter-clear" onclick="clearGlobalFilter()">✕</button>
+    </div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="tm"><div class="tl">Throughput</div><div class="tv" id="top-bps">0 bps</div></div>
+    <div class="tm"><div class="tl">Pkt/s</div><div class="tv" id="top-pps">0</div></div>
+    <div class="ws-pill" id="ws-pill"><span class="wdot"></span>CONNECTING</div>
+    <button class="btn-scan" id="scan-btn" onclick="triggerScan()">⟳ SCAN</button>
+    <button onclick="doLogout()" class="btn-logout">⏻ LOGOUT</button>
+  </div>
+</div>
+
+<!-- Mobile navigation drawer (shown on small screens) -->
+<div id="mobile-nav">
+  <div class="mobile-tab active" data-t="dashboard"  onclick="mobileTab('dashboard')" >
+    <span class="mdot" style="color:var(--cyan)"></span><span class="mobile-tab-label">Dashboard</span>
+  </div>
+  <div class="mobile-tab" data-t="capture"   onclick="mobileTab('capture')">
+    <span class="mdot" style="color:var(--c1)"></span><span class="mobile-tab-label">L1 Capture</span>
+  </div>
+  <div class="mobile-tab" data-t="protocol"  onclick="mobileTab('protocol')">
+    <span class="mdot" style="color:var(--c2)"></span><span class="mobile-tab-label">L2 Protocol</span>
+  </div>
+  <div class="mobile-tab" data-t="discovery" onclick="mobileTab('discovery')">
+    <span class="mdot" style="color:var(--c3)"></span><span class="mobile-tab-label">L3 Discovery</span>
+  </div>
+  <div class="mobile-tab" data-t="flows"     onclick="mobileTab('flows')">
+    <span class="mdot" style="color:var(--c4)"></span><span class="mobile-tab-label">L4 Flows</span>
+  </div>
+  <div class="mobile-tab" data-t="topology"  onclick="mobileTab('topology')">
+    <span class="mdot" style="color:var(--purple)"></span><span class="mobile-tab-label">Topology</span>
+  </div>
+  <div class="mobile-tab" data-t="alerts"    onclick="mobileTab('alerts')">
+    <span class="mdot" style="color:var(--red)"></span>
+    <span class="mobile-tab-label">Alerts</span>
+    <span class="mbadge" id="m-alert-badge">0</span>
+  </div>
+  <div class="mobile-tab" data-t="suricata"  onclick="mobileTab('suricata')">
+    <span class="mdot" style="color:var(--amber)"></span><span class="mobile-tab-label">⚡ Suricata</span>
+  </div>
+  <div class="mobile-tab" data-t="pihole"    onclick="mobileTab('pihole')">
+    <span class="mdot" style="color:#00b4d8"></span><span class="mobile-tab-label">🔵 Pi-hole</span>
+  </div>
+  <div class="mobile-tab" data-t="settings"  onclick="mobileTab('settings')">
+    <span class="mdot" style="color:var(--cd)"></span><span class="mobile-tab-label">⚙ Settings</span>
+  </div>
+  <!-- Mobile filter row -->
+  <div id="mobile-filter" style="padding:10px 16px;border-top:1px solid var(--border)">
+    <input class="sinput" type="text" id="mobile-filter-input"
+           style="width:100%;padding:8px 12px;font-size:13px"
+           placeholder="🔍 Filter IP or MAC…"
+           oninput="document.getElementById('global-filter').value=this.value;globalFilterChange();">
+  </div>
+</div>
+
+<div id="mobile-nav-backdrop" onclick="closeMobileNav()"></div>
+
+<div class="content">
+
+<!-- ════ DASHBOARD ════════════════════════════════════════════ -->
+<div class="tpanel active" id="tab-dashboard">
+  <!-- Stats grid -->
+  <div class="sgrid sg6">
+    <div class="scell" style="border-color:rgba(0,240,255,.25);cursor:pointer;padding:8px 10px" onclick="tab('alerts')">
+      <div class="sl">Health Score</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <!-- Animated donut -->
+        <div style="position:relative;width:52px;height:52px;flex-shrink:0">
+          <svg viewBox="0 0 44 44" style="width:100%;height:100%;transform:rotate(-90deg)">
+            <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(0,240,255,.1)" stroke-width="5"/>
+            <circle id="d-health-ring" cx="22" cy="22" r="18" fill="none"
+              stroke="var(--green)" stroke-width="5"
+              stroke-dasharray="113.1" stroke-dashoffset="0"
+              stroke-linecap="round"
+              style="transition:stroke-dashoffset 1.2s ease,stroke .5s"/>
+          </svg>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
+            <span id="d-health-grade" style="font-family:var(--mono);font-size:14px;font-weight:700;color:var(--green)">—</span>
+          </div>
+        </div>
+        <div>
+          <div id="d-health-score" style="font-family:var(--mono);font-size:20px;font-weight:600;color:var(--green);line-height:1">—</div>
+          <div id="d-health-label" style="font-size:9px;color:var(--cd);margin-top:3px;letter-spacing:.5px">calculating…</div>
+        </div>
+      </div>
+    </div>
+    <div class="scell" style="cursor:pointer" onclick="tab('discovery')" title="Click to view devices"><div class="sl">Online ↗</div><div class="sv c3" id="d-online">—</div></div>
+    <div class="scell"><div class="sl">Incidents</div><div class="sv c5" id="d-incidents" style="cursor:pointer" onclick="tab('alerts')">—</div></div>
+    <div class="scell"><div class="sl">Active Flows</div><div class="sv c4" id="d-flows">—</div></div>
+    <div class="scell"><div class="sl">Pkts Captured</div><div class="sv c2" id="d-pkts">—</div></div>
+    <div class="scell"><div class="sl">Capture Mbps</div><div class="sv c1" id="d-mbps">—</div></div>
+  </div>
+
+  <!-- Insights row — TOP (moved up per request) -->
+  <div class="row3" style="flex-shrink:0">
+    <div class="card" style="border-color:rgba(0,229,160,.3)">
+      <div class="ch"><div class="ct-label" style="color:var(--c3)">▪ Device Summary</div></div>
+      <div class="cb-body" id="dash-device-summary" style="font-size:11px;line-height:2;font-family:var(--mono)"></div>
+    </div>
+    <div class="card" style="border-color:rgba(255,59,122,.3)">
+      <div class="ch"><div class="ct-label" style="color:var(--c5)">▪ Security Status</div></div>
+      <div class="cb-body" id="dash-security-status" style="font-size:11px;line-height:2"></div>
+    </div>
+    <div class="card" style="border-color:rgba(0,212,255,.3)">
+      <div class="ch"><div class="ct-label" style="color:var(--c1)">▪ Network Speed</div></div>
+      <div class="cb-body" style="font-size:11px;line-height:2;font-family:var(--mono)">
+        <div>In: <span id="ns-in" style="color:var(--cyan)">—</span></div>
+        <div>Out: <span id="ns-out" style="color:var(--c2)">—</span></div>
+        <div>Pkts/s: <span id="ns-pps" style="color:var(--c4)">—</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts row -->
+  <div class="row2">
+    <div class="card">
+      <div class="ch"><div class="ct-label" style="color:var(--c1)">▪ Live Bandwidth</div><span style="font-family:var(--mono);font-size:10px;color:var(--cd)">60s</span></div>
+      <div class="cb-body"><div style="height:120px;position:relative"><canvas id="bw-chart"></canvas></div></div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct-label" style="color:var(--c2)">▪ Protocol Distribution</div></div>
+      <div class="resizable cb-body" style="height:148px;overflow-y:auto" id="proto-dist"></div>
+    </div>
+  </div>
+
+  <!-- Talkers + Events -->
+  <div class="row2" style="flex:1;min-height:0;">
+    <div class="card" style="display:flex;flex-direction:column;min-height:0;">
+      <div class="ch"><div class="ct-label" style="color:var(--c4)">▪ Top Talkers</div></div>
+      <div class="resizable" style="flex:1;overflow-y:auto;padding:9px 11px;min-height:100px" id="top-talkers"></div>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;min-height:0;">
+      <div class="ch">
+        <div class="ct-label" style="color:var(--c5)">▪ Event Log</div>
+        <div class="sbar">
+          <button class="chip on" id="elog-tab-live" onclick="elogTab('live')"><span class="live-dot green"></span>LIVE</button>
+          <button class="chip" id="elog-tab-history" onclick="elogTab('history')">HISTORY</button>
+        </div>
+        <button class="chip" onclick="clearEvents()">Clear</button>
+      </div>
+      <!-- Live feed -->
+      <div id="elog-live-panel" style="flex:1;overflow-y:auto;min-height:100px" class="resizable">
+        <div id="event-log">
+          <div style="font-size:11px;color:var(--cd);text-align:center;padding:16px" data-empty>Waiting for events...</div>
+        </div>
+      </div>
+      <!-- History panel -->
+      <div id="elog-history-panel" style="display:none;flex:1;flex-direction:column;min-height:0">
+        <div style="padding:7px 10px;border-bottom:1px solid var(--border);display:flex;gap:6px;align-items:center;flex-wrap:wrap;background:var(--bg2)">
+          <input class="sinput" style="flex:1;min-width:130px" type="text" id="elog-search" placeholder="Search IP, message..." oninput="elogSearch()">
+          <select id="elog-type-filter" onchange="elogSearch()" style="background:var(--bg3);border:1px solid var(--border);color:var(--ct);padding:4px 8px;border-radius:3px;font-size:11px;font-family:var(--mono);outline:none">
+            <option value="">All types</option>
+            <option value="joined">Joined</option>
+            <option value="left">Left</option>
+            <option value="scan">Scan</option>
+            <option value="alert">Alert</option>
+            <option value="system">System</option>
+          </select>
+          <span id="elog-total" style="font-family:var(--mono);font-size:10px;color:var(--cd)">0 events</span>
+        </div>
+        <div id="elog-history-rows" style="overflow-y:auto;flex:1;min-height:80px"></div>
+        <div id="elog-pagination" style="padding:6px 10px;border-top:1px solid var(--border);display:flex;gap:6px;align-items:center;background:var(--bg2);font-size:10px;font-family:var(--mono);color:var(--cd)"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ CAPTURE ══════════════════════════════════════════════ -->
+<div class="tpanel" id="tab-capture">
+  <div class="sgrid sg6">
+    <div class="scell"><div class="sl">Captured</div><div class="sv c1" id="cap-total">—</div></div>
+    <div class="scell"><div class="sl">Pkt/s</div><div class="sv c1" id="cap-pps">—</div></div>
+    <div class="scell"><div class="sl">Mbps</div><div class="sv c1" id="cap-mbps">—</div></div>
+    <div class="scell"><div class="sl">Dropped</div><div class="sv c5" id="cap-drop">—</div></div>
+    <div class="scell"><div class="sl">Ring Buffer</div><div class="sv c4" id="cap-ring">—</div></div>
+    <div class="scell"><div class="sl">Interfaces</div><div class="sv" id="cap-ifaces" style="font-size:11px">—</div></div>
+  </div>
+  <div class="card" style="flex-shrink:0">
+    <div class="ch">
+      <div class="ct-label"><span style="color:var(--c1)">▪</span> Packet Stream</div>
+      <div class="sbar">
+        <button class="chip on" id="pf-all" onclick="setPF('all')">ALL</button>
+        <button class="chip" id="pf-tcp" onclick="setPF('tcp')">TCP</button>
+        <button class="chip" id="pf-udp" onclick="setPF('udp')">UDP</button>
+        <button class="chip" id="pf-arp" onclick="setPF('arp')">ARP</button>
+        <button class="chip" id="pf-dns" onclick="setPF('dns')">DNS</button>
+      </div>
+    </div>
+    <div class="pstream resizable" style="height:300px" id="pkt-stream">
+      <div class="phdr"><span>Time</span><span>Src IP</span><span>Dst IP</span><span>L3</span><span>L7</span><span>Sport</span><span>Dport</span><span>Info</span></div>
+      <div id="pkt-rows"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct-label"><span style="color:var(--c1)">▪</span> Throughput</div></div>
+    <div class="cb-body"><div style="height:90px;position:relative"><canvas id="cap-chart"></canvas></div></div>
+  </div>
+</div>
+
+<!-- ════ PROTOCOL ════════════════════════════════════════════ -->
+<div class="tpanel" id="tab-protocol">
+
+  <!-- Mode toggle -->
+  <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+    <button class="chip c2 on" id="proto-tab-live"    onclick="protoTab('live')"   ><span class="live-dot green"></span>LIVE</button>
+    <button class="chip c2"    id="proto-tab-history"  onclick="protoTab('history')">📂 HISTORY</button>
+    <div id="proto-hist-ranges" style="display:none;gap:4px;display:none">
+      <button class="chip c2 on" id="ph-r-1d" onclick="protoRange('1d')">1D</button>
+      <button class="chip c2"    id="ph-r-3d" onclick="protoRange('3d')">3D</button>
+      <button class="chip c2"    id="ph-r-1w" onclick="protoRange('1w')">1W</button>
+      <button class="chip c2"    id="ph-r-1m" onclick="protoRange('1m')">1M</button>
+    </div>
+    <span id="proto-hist-count" style="font-family:var(--mono);font-size:10px;color:var(--cd)"></span>
+  </div>
+
+  <!-- LIVE panel -->
+  <div id="proto-live-panel" style="display:flex;flex-direction:column;gap:8px">
+    <div class="card" style="flex-shrink:0">
+      <div class="ch">
+        <div class="ct-label" style="color:var(--c2)">▪ DNS Queries</div>
+        <div class="sbar">
+          <input class="sinput" style="width:120px" type="text" placeholder="Filter IP..." id="dns-ip" oninput="renderDns();syncToGlobal(this.value)">
+          <input class="sinput" style="width:150px" type="text" placeholder="Filter query..." id="dns-q" oninput="renderDns()">
+          <button class="chip c2 on" id="dns-all"   onclick="setDnsType('all')"  >ALL</button>
+          <button class="chip c2"    id="dns-query"  onclick="setDnsType('query')">QUERIES</button>
+          <button class="chip c2"    id="dns-resp"   onclick="setDnsType('resp')" >RESPONSES</button>
+          <span id="dns-count" style="font-family:var(--mono);font-size:10px;color:var(--cd)">0</span>
+        </div>
+      </div>
+      <div class="resizable" style="height:220px;overflow-y:auto;min-height:80px">
+        <table class="dt"><thead><tr><th>Time</th><th>Src IP</th><th>Query</th><th>Type</th><th>Answer</th></tr></thead>
+        <tbody id="dns-tbody"></tbody></table>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="card">
+        <div class="ch"><div class="ct-label" style="color:var(--c2)">▪ TLS / JA3</div><span id="tls-count" style="font-family:var(--mono);font-size:10px;color:var(--cd)">0</span></div>
+        <div style="max-height:190px;overflow-y:auto">
+          <table class="dt"><thead><tr><th>Time</th><th>Src</th><th>SNI</th><th>JA3</th><th>Port</th></tr></thead>
+          <tbody id="tls-tbody"></tbody></table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="ch"><div class="ct-label" style="color:var(--c2)">▪ HTTP</div></div>
+        <div style="max-height:190px;overflow-y:auto">
+          <table class="dt"><thead><tr><th>Time</th><th>Method</th><th>Host</th><th>Path</th><th>Status</th><th>UA</th></tr></thead>
+          <tbody id="http-tbody"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORY panel -->
+  <div id="proto-hist-panel" style="display:none;flex-direction:column;gap:8px">
+    <!-- DNS History -->
+    <div class="card">
+      <div class="ch">
+        <div class="ct-label" style="color:var(--c2)">▪ DNS History</div>
+        <div class="sbar">
+          <input class="sinput" style="width:120px" type="text" placeholder="Filter IP..." id="hdns-ip" oninput="histDnsSearch()">
+          <input class="sinput" style="width:160px" type="text" placeholder="Filter query..." id="hdns-q" oninput="histDnsSearch()">
+          <span id="hdns-total" style="font-family:var(--mono);font-size:10px;color:var(--cd)">0</span>
+        </div>
+      </div>
+      <div class="resizable" style="height:220px;overflow-y:auto;min-height:80px">
+        <table class="dt"><thead><tr><th>Time</th><th>Src IP</th><th>Query</th><th>Type</th><th>Answer</th></tr></thead>
+        <tbody id="hdns-tbody"></tbody></table>
+      </div>
+      <div id="hdns-page" style="padding:5px 10px;border-top:1px solid var(--border);display:flex;gap:6px;font-size:10px;font-family:var(--mono);color:var(--cd);background:var(--bg2)"></div>
+    </div>
+    <!-- TLS History -->
+    <div class="card">
+      <div class="ch">
+        <div class="ct-label" style="color:var(--c2)">▪ TLS History</div>
+        <div class="sbar">
+          <input class="sinput" style="width:120px" type="text" placeholder="Filter IP..." id="htls-ip" oninput="histTlsSearch()">
+          <input class="sinput" style="width:160px" type="text" placeholder="Filter SNI..." id="htls-sni" oninput="histTlsSearch()">
+          <span id="htls-total" style="font-family:var(--mono);font-size:10px;color:var(--cd)">0</span>
+        </div>
+      </div>
+      <div class="resizable" style="height:180px;overflow-y:auto;min-height:60px">
+        <table class="dt"><thead><tr><th>Time</th><th>Src</th><th>Dst</th><th>SNI</th><th>JA3</th><th>Port</th></tr></thead>
+        <tbody id="htls-tbody"></tbody></table>
+      </div>
+      <div id="htls-page" style="padding:5px 10px;border-top:1px solid var(--border);display:flex;gap:6px;font-size:10px;font-family:var(--mono);color:var(--cd);background:var(--bg2)"></div>
+    </div>
+    <!-- Archive browser -->
+    <div class="card" style="border-color:rgba(0,229,160,.2)">
+      <div class="ch"><div class="ct-label" style="color:var(--c3)">▪ Monthly Archive (CSV)</div></div>
+      <div id="proto-archive" style="padding:8px 12px;font-size:11px;color:var(--cd)">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ DISCOVERY ══════════════════════════════════════════ -->
+<div class="tpanel" id="tab-discovery">
+  <div class="card" style="flex:1">
+    <div class="ch">
+      <div class="ct-label" style="color:var(--c3)">▪ Asset Inventory</div>
+      <div class="sbar">
+        <input class="sinput" style="flex:1;min-width:200px" type="text" placeholder="Search IP, MAC, hostname, vendor, OS..." id="dev-search" oninput="filterDisc();syncToGlobal(this.value)">
+        <button class="chip c3 on" id="df-all" onclick="setDF('all')">ALL</button>
+        <button class="chip c3" id="df-online" onclick="setDF('online')">ONLINE</button>
+        <button class="chip c3" id="df-offline" onclick="setDF('offline')">OFFLINE</button>
+        <button class="chip" onclick="resolveHostnames()">⟳ Resolve Names</button>
+        <a href="/api/export/devices.csv" class="chip" download>⬇ Export CSV</a>
+        <button class="chip" style="border-color:var(--c3);color:var(--c3)" onclick="showImportModal()">⬆ Import CSV</button>
+      </div>
+    </div>
+    <div style="overflow-y:auto;max-height:calc(100vh - 160px)">
+      <table class="dt"><thead><tr>
+        <th style="width:10px"></th><th>IP</th><th>MAC</th><th>Hostname / Label</th>
+        <th>Vendor</th><th>OS</th><th>Device Type</th><th>TTL</th><th>Last Seen</th>
+      </tr></thead><tbody id="disc-tbody"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- ════ FLOWS ══════════════════════════════════════════════ -->
+<div class="tpanel" id="tab-flows">
+  <div class="sgrid sg3">
+    <div class="scell"><div class="sl">Active Flows</div><div class="sv c4" id="f-count">—</div></div>
+    <div class="scell"><div class="sl">Avg RTT</div><div class="sv c4" id="f-rtt">—</div></div>
+    <div class="scell"><div class="sl">Tracked IPs</div><div class="sv c4" id="f-ips">—</div></div>
+  </div>
+
+  <!-- Mode toggle + time range -->
+  <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+    <button class="chip c4 on" id="flow-tab-live"    onclick="flowTab('live')"   ><span class="live-dot green"></span>LIVE</button>
+    <button class="chip c4"    id="flow-tab-history"  onclick="flowTab('history')">📂 HISTORY</button>
+    <div id="flow-hist-ranges" style="display:none;gap:4px">
+      <button class="chip c4 on" id="fh-r-1d" onclick="flowRange('1d')">1D</button>
+      <button class="chip c4"    id="fh-r-3d" onclick="flowRange('3d')">3D</button>
+      <button class="chip c4"    id="fh-r-1w" onclick="flowRange('1w')">1W</button>
+      <button class="chip c4"    id="fh-r-1m" onclick="flowRange('1m')">1M</button>
+    </div>
+    <span id="flow-hist-count" style="font-family:var(--mono);font-size:10px;color:var(--cd)"></span>
+  </div>
+
+  <!-- LIVE panel -->
+  <div id="flow-live-panel" class="card" style="flex:1">
+    <div class="ch">
+      <div class="ct-label" style="color:var(--c4)">▪ Live Connection Table</div>
+      <div class="sbar">
+        <button class="chip c4 on" id="fs-bytes" onclick="setFS('bytes')">BYTES</button>
+        <button class="chip c4"    id="fs-time"  onclick="setFS('time')">TIME</button>
+        <input class="sinput" style="width:150px" type="text" placeholder="Filter IP/port..." id="flow-search" oninput="filterFlows();syncToGlobal(this.value)">
+        <label style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--cd);cursor:pointer">
+          <input type="checkbox" id="flow-hide-self" onchange="filterFlows()" style="accent-color:var(--c4)">
+          Hide :5000
+        </label>
+        <a href="/api/export/flows.csv" class="chip" download>⬇ CSV</a>
+      </div>
+    </div>
+    <div style="overflow-y:auto;max-height:calc(100vh - 260px)">
+      <table class="dt"><thead><tr>
+        <th>Src IP:Port</th><th>Dst IP:Port</th><th>Proto</th><th>App</th>
+        <th>Bytes</th><th>Pkts</th><th>RTT</th><th>Jitter</th><th>Duration</th><th>State</th>
+      </tr></thead><tbody id="flow-tbody"></tbody></table>
+    </div>
+  </div>
+
+  <!-- HISTORY panel -->
+  <div id="flow-hist-panel" style="display:none;flex-direction:column;gap:8px;flex:1">
+    <div class="card" style="flex:1">
+      <div class="ch">
+        <div class="ct-label" style="color:var(--c4)">▪ Flow History</div>
+        <div class="sbar">
+          <input class="sinput" style="width:140px" type="text" placeholder="Filter IP..." id="hflow-ip" oninput="histFlowSearch()">
+          <input class="sinput" style="width:80px"  type="text" placeholder="Port..." id="hflow-port" oninput="histFlowSearch()">
+          <select id="hflow-proto" onchange="histFlowSearch()" style="background:var(--bg3);border:1px solid var(--border);color:var(--ct);padding:4px 8px;border-radius:3px;font-size:11px;font-family:var(--mono);outline:none">
+            <option value="">All</option>
+            <option value="TCP">TCP</option>
+            <option value="UDP">UDP</option>
+            <option value="ICMP">ICMP</option>
+          </select>
+          <label style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--cd);cursor:pointer">
+            <input type="checkbox" id="hflow-hide-self" onchange="histFlowSearch()" style="accent-color:var(--c4)">
+            Hide :5000
+          </label>
+          <span id="hflow-total" style="font-family:var(--mono);font-size:10px;color:var(--cd)">0</span>
+        </div>
+      </div>
+      <div style="overflow-y:auto;max-height:calc(100vh - 340px)">
+        <table class="dt"><thead><tr>
+          <th>Time</th><th>Src IP:Port</th><th>Dst IP:Port</th><th>Proto</th>
+          <th>Bytes</th><th>Pkts</th><th>RTT</th><th>Duration</th><th>State</th>
+        </tr></thead><tbody id="hflow-tbody"></tbody></table>
+      </div>
+      <div id="hflow-page" style="padding:5px 10px;border-top:1px solid var(--border);display:flex;gap:6px;font-size:10px;font-family:var(--mono);color:var(--cd);background:var(--bg2)"></div>
+    </div>
+    <!-- Archive browser -->
+    <div class="card" style="border-color:rgba(0,229,160,.2)">
+      <div class="ch"><div class="ct-label" style="color:var(--c3)">▪ Monthly Archive (CSV)</div></div>
+      <div id="flow-archive" style="padding:8px 12px;font-size:11px;color:var(--cd)">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ TOPOLOGY ════════════════════════════════════════════ -->
+<div class="tpanel" id="tab-topology">
+  <div class="sgrid sg3" style="flex-shrink:0">
+    <div class="scell"><div class="sl">Nodes</div><div class="sv c7" id="topo-nodes" style="color:var(--c7)">—</div></div>
+    <div class="scell"><div class="sl">Edges</div><div class="sv" style="color:var(--c7)" id="topo-edges">—</div></div>
+    <div class="scell"><div class="sl">Subnets</div><div class="sv" style="color:var(--c7)" id="topo-subnets">—</div></div>
+  </div>
+  <div class="card" style="flex-shrink:0">
+    <div class="ch">
+      <div class="ct-label" style="color:var(--c7)">▪ Network Topology Graph</div>
+      <div class="sbar">
+        <div class="topo-legend">
+          <div class="topo-leg-item"><div class="topo-leg-dot" style="background:var(--c3)"></div>Endpoint</div>
+          <div class="topo-leg-item"><div class="topo-leg-dot" style="background:var(--c1)"></div>Hub (10+ conns)</div>
+          <div class="topo-leg-item"><div class="topo-leg-dot" style="background:var(--c5)"></div>External</div>
+          <div class="topo-leg-item"><div class="topo-leg-dot" style="background:var(--cd)"></div>Isolated</div>
+        </div>
+        <button class="chip" onclick="loadTopology()">⟳ Refresh</button>
+        <button class="chip" id="topo-physics-btn" onclick="toggleTopoPhysics()">Physics ON</button>
+      </div>
+    </div>
+    <div class="resizable" style="height:420px;min-height:200px;overflow:hidden;position:relative">
+      <canvas id="topo-canvas" style="width:100%;height:100%;display:block"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct-label" style="color:var(--c7)">▪ Top Connected Nodes</div></div>
+    <div style="max-height:200px;overflow-y:auto">
+      <table class="dt"><thead><tr><th>IP</th><th>Label</th><th>Role</th><th>Connections</th><th>Bytes In</th><th>Bytes Out</th><th>Subnet</th></tr></thead>
+      <tbody id="topo-tbody"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- ════ ALERTS ══════════════════════════════════════════════ -->
+<div class="tpanel" id="tab-alerts">
+  <div class="sgrid sg5">
+    <div class="scell"><div class="sl">Total</div><div class="sv c5" id="al-total">—</div></div>
+    <div class="scell"><div class="sl">Unread</div><div class="sv c5" id="al-unread">—</div></div>
+    <div class="scell"><div class="sl">Critical</div><div class="sv c5" id="al-crit">—</div></div>
+    <div class="scell"><div class="sl">High</div><div class="sv c4" id="al-high">—</div></div>
+    <div class="scell"><div class="sl">Warning</div><div class="sv c6" id="al-warn">—</div></div>
+  </div>
+  <!-- Incidents panel -->
+  <div class="card" style="flex-shrink:0;border-color:rgba(255,40,85,.25)" id="incidents-card">
+    <div class="ch">
+      <div class="ct-label" style="color:var(--c5)">▪ Active Incidents</div>
+      <div class="sbar">
+        <span id="inc-count" style="font-family:var(--mono);font-size:10px;color:var(--cd)">0 incidents</span>
+        <button class="chip" onclick="dismissAllIncidents()">Mark All Resolved</button>
+      </div>
+    </div>
+    <div id="incident-list" class="resizable" style="height:200px;min-height:80px;overflow-y:auto;padding:6px 10px;resize:vertical">
+      <div style="color:var(--cd);font-size:11px;text-align:center;padding:12px" id="inc-empty">
+        No active incidents ✓
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="flex:1">
+    <div class="ch">
+      <div class="ct-label" style="color:var(--c5)">▪ Alert Feed</div>
+      <div class="sbar">
+        <button class="chip c5 on" id="af-all"      onclick="setAF('all')"     >ALL</button>
+        <button class="chip c5"    id="af-network"   onclick="setAF('network')" >NETWORK</button>
+        <button class="chip c5"    id="af-security"  onclick="setAF('security')">SECURITY</button>
+        <button class="chip c5"    id="af-traffic"   onclick="setAF('traffic')" >TRAFFIC</button>
+        <button class="chip c5"    id="af-unread"    onclick="setAF('unread')"  >UNREAD</button>
+        <button class="chip"       onclick="dismissAll()">Mark All Read</button>
+        <button class="chip" onclick="clearAllAlerts()" style="border-color:var(--c5);color:var(--c5)">🗑 Clear All</button>
+        <a href="/api/export/alerts.csv" class="chip" download>⬇ CSV</a>
+      </div>
+    </div>
+    <div id="alert-list" style="overflow-y:auto;max-height:calc(100vh - 220px);padding:9px"></div>
+  </div>
+</div>
+
+<!-- ════ SURICATA ════════════════════════════════════════════ -->
+<div class="tpanel" id="tab-suricata">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:7px 12px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;flex-shrink:0;">
+    <div style="display:flex;align-items:center;gap:6px">
+      <span id="sur-status-dot" style="width:8px;height:8px;border-radius:50%;background:var(--cd);display:inline-block;transition:background .3s"></span>
+      <span style="font-size:11px;font-family:var(--mono);color:var(--ct)" id="sur-status-text">Checking...</span>
+    </div>
+    <div style="font-size:10px;color:var(--cd)">EVE: <span id="sur-eve-path-show" style="color:var(--c1);font-family:var(--mono)">/var/log/suricata/eve.json</span></div>
+    <div style="font-size:10px;color:var(--cd)">Events: <span id="sur-parsed-count" style="color:var(--ct);font-family:var(--mono)">0</span></div>
+    <div style="margin-left:auto;display:flex;gap:5px">
+      <a href="/api/export/suricata.csv" class="chip" download>⬇ CSV</a>
+      <button class="chip" onclick="loadSuricata();loadSurAlerts();">⟳ Refresh</button>
+    </div>
+  </div>
+  <div id="sur-offline-banner" style="display:none;background:rgba(255,149,0,.1);border:1px solid rgba(255,149,0,.3);border-radius:4px;padding:11px 14px;font-size:12px;flex-shrink:0;">
+    <div style="font-weight:600;color:#ff9500;margin-bottom:5px">⚠ Suricata EVE log not found</div>
+    <div style="color:var(--ct);line-height:1.9;font-size:11px">
+      <b style="color:var(--cb)">1.</b> Check Suricata: <code style="color:var(--c1);background:var(--bg3);padding:1px 5px;border-radius:2px">sudo systemctl status suricata</code><br>
+      <b style="color:var(--cb)">2.</b> Check EVE log: <code style="color:var(--c1);background:var(--bg3);padding:1px 5px;border-radius:2px">sudo tail -5 /var/log/suricata/eve.json</code><br>
+      <b style="color:var(--cb)">3.</b> docker-compose.yml must have: <code style="color:var(--c1);background:var(--bg3);padding:1px 5px;border-radius:2px">- /var/log/suricata:/var/log/suricata:ro</code><br>
+      <b style="color:var(--cb)">4.</b> Then: <code style="color:var(--c1);background:var(--bg3);padding:1px 5px;border-radius:2px">sudo docker compose restart</code>
+    </div>
+  </div>
+  <div class="sgrid sg6">
+    <div class="scell"><div class="sl">Total Alerts</div><div class="sv c4" id="sur-total">—</div></div>
+    <div class="scell"><div class="sl">Critical</div><div class="sv c5" id="sur-crit">—</div></div>
+    <div class="scell"><div class="sl">High</div><div class="sv c4" id="sur-high">—</div></div>
+    <div class="scell"><div class="sl">Warning</div><div class="sv c6" id="sur-warn">—</div></div>
+    <div class="scell"><div class="sl">Total Flows</div><div class="sv c1" id="sur-flows">—</div></div>
+    <div class="scell"><div class="sl">Engine Uptime</div><div class="sv c3" id="sur-uptime">—</div></div>
+  </div>
+  <div class="row2">
+    <div class="card">
+      <div class="ch">
+        <div class="ct-label" style="color:var(--c4)">⚡ Traffic (Suricata Flows)</div>
+        <div class="sbar">
+          <button class="chip c4 on" id="sur-chart-bytes"  onclick="setSurChart('bytes')">BYTES</button>
+          <button class="chip c4"    id="sur-chart-pkts"   onclick="setSurChart('pkts')">PKTS</button>
+          <button class="chip c4"    id="sur-chart-alerts" onclick="setSurChart('alerts')">ALERTS/s</button>
+        </div>
+      </div>
+      <div class="cb-body"><div style="height:130px;position:relative"><canvas id="sur-traffic-chart"></canvas></div></div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct-label" style="color:var(--c4)">⚡ Alert Categories</div></div>
+      <div class="cb-body"><div style="height:130px;position:relative"><canvas id="sur-cat-chart"></canvas></div></div>
+    </div>
+  </div>
+  <div class="row2">
+    <div class="card">
+      <div class="ch"><div class="ct-label" style="color:var(--c4)">⚡ Protocol Breakdown</div></div>
+      <div class="resizable cb-body" style="height:150px;overflow-y:auto" id="sur-proto-bars"></div>
+    </div>
+    <div class="card">
+      <div class="ch">
+        <div class="ct-label" style="color:var(--c4)">⚡ Top Alert Sources</div>
+        <button class="chip" id="sur-src-toggle" onclick="toggleSurSrc()">SHOW DESTS</button>
+      </div>
+      <div id="sur-src-list" style="max-height:150px;overflow-y:auto;padding:8px 11px"></div>
+    </div>
+  </div>
+  <div class="card" style="flex:1">
+    <div class="ch">
+      <div class="ct-label" style="color:var(--c4)">⚡ Live Alert Feed</div>
+      <div class="sbar">
+        <input class="sinput" style="width:140px" type="text" placeholder="Signature..." id="sur-sig-filter" oninput="renderSurAlerts()">
+        <input class="sinput" style="width:110px" type="text" placeholder="IP..." id="sur-ip-filter" oninput="renderSurAlerts()">
+        <button class="chip c4 on" id="surf-all"      onclick="setSurF('all')"     >ALL</button>
+        <button class="chip c4"    id="surf-critical"  onclick="setSurF('critical')">CRIT</button>
+        <button class="chip c4"    id="surf-high"      onclick="setSurF('high')"    >HIGH</button>
+        <button class="chip c4"    id="surf-warning"   onclick="setSurF('warning')" >WARN</button>
+        <button class="chip" onclick="clearSuricata()" style="border-color:var(--c5);color:var(--c5)">🗑 Clear</button>
+        <span id="sur-count" style="font-family:var(--mono);font-size:10px;color:var(--cd)"></span>
+      </div>
+    </div>
+    <div class="resizable" style="height:300px;min-height:120px;overflow-y:auto">
+      <table class="dt"><thead><tr>
+        <th></th><th>Sev</th><th>Signature</th><th>Category</th>
+        <th>Src IP</th><th>Dst IP</th><th>Proto</th><th>App</th><th>Action</th><th>Time</th>
+      </tr></thead><tbody id="sur-alert-tbody"></tbody></table>
+    </div>
+  </div>
+  <div class="row2">
+    <div class="card">
+      <div class="ch"><div class="ct-label" style="color:var(--c3)">▪ DNS (Suricata)</div><span id="sur-dns-count" style="font-family:var(--mono);font-size:10px;color:var(--cd)"></span></div>
+      <div style="max-height:160px;overflow-y:auto">
+        <table class="dt"><thead><tr><th>Time</th><th>Src</th><th>Query</th><th>Type</th><th>Answer</th></tr></thead>
+        <tbody id="sur-dns-tbody"></tbody></table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct-label" style="color:var(--c2)">▪ TLS (Suricata)</div><span id="sur-tls-count" style="font-family:var(--mono);font-size:10px;color:var(--cd)"></span></div>
+      <div style="max-height:160px;overflow-y:auto">
+        <table class="dt"><thead><tr><th>Time</th><th>Src</th><th>SNI</th><th>Version</th><th>JA3</th><th>JA3S</th></tr></thead>
+        <tbody id="sur-tls-tbody"></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- Block IP Modal -->
+<div class="mover" id="block-modal">
+  <div class="modal" style="min-width:440px">
+    <h3 style="color:var(--c5)">🚫 Block IP Address</h3>
+    <div style="background:rgba(255,40,85,.07);border:1px solid rgba(255,40,85,.2);border-radius:4px;padding:10px 12px;margin-bottom:14px">
+      <div style="font-family:var(--mono);font-size:16px;color:var(--c5);font-weight:600" id="block-ip-display"></div>
+      <div id="block-geo-display" style="font-size:11px;color:var(--cd);margin-top:3px"></div>
+    </div>
+    <div class="mf">
+      <label>Action</label>
+      <select id="block-action" style="width:100%">
+        <option value="pihole">Add to Pi-hole blocklist (DNS block)</option>
+        <option value="show_cmd">Show iptables/nftables commands only</option>
+      </select>
+      <div style="font-size:10px;color:var(--cd);margin-top:4px">
+        DNS block prevents the device from resolving domains. For full traffic block, use the iptables commands on your router.
+      </div>
+    </div>
+    <div class="mf">
+      <label>Reason / Note (optional)</label>
+      <input type="text" id="block-note" placeholder="e.g. DNS tunneling detected" style="width:100%">
+    </div>
+    <!-- Router commands (shown after blocking) -->
+    <div id="block-cmds" style="display:none;margin-bottom:12px">
+      <div style="font-size:10px;color:var(--cd);margin-bottom:6px;letter-spacing:1px;text-transform:uppercase">Router / Firewall Commands</div>
+      <div id="block-cmds-content" style="background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:4px;padding:10px 12px;font-family:var(--mono);font-size:11px;color:var(--cyan);line-height:2"></div>
+    </div>
+    <div class="mactions">
+      <button class="btn-cancel" onclick="closeBlockModal()">Cancel</button>
+      <button class="btn-save" id="block-btn" style="background:rgba(255,40,85,.1);border-color:var(--c5);color:var(--c5)" onclick="doBlock()">Block IP</button>
+    </div>
+  </div>
+</div>
+
+<!-- Device Import Modal -->
+<div class="mover" id="import-modal">
+  <div class="modal" style="min-width:440px;max-width:540px">
+    <h3 style="color:var(--c3)">⬆ Import Device Labels</h3>
+    <p style="font-size:11px;color:var(--cd);line-height:1.7;margin-bottom:14px">
+      Upload a CSV file exported from NetWatch to restore labels, hostnames, and device types.<br>
+      Rows are matched by <b style="color:var(--cb)">MAC address</b> (or IP as fallback).<br>
+      Only <b style="color:var(--cb)">Label</b>, <b style="color:var(--cb)">Hostname / Label</b>, and <b style="color:var(--cb)">Device Type</b> columns are imported — all other fields are ignored.
+    </p>
+    <div class="mf">
+      <label>Select CSV file</label>
+      <div id="import-drop-zone" style="border:2px dashed var(--border2);border-radius:6px;padding:22px;text-align:center;cursor:pointer;transition:border-color .2s;background:var(--bg3)"
+           onclick="document.getElementById('import-file-input').click()"
+           ondragover="event.preventDefault();this.style.borderColor='var(--c3)'"
+           ondragleave="this.style.borderColor='var(--border2)'"
+           ondrop="handleImportDrop(event)">
+        <div style="font-size:28px;margin-bottom:6px">📂</div>
+        <div style="font-size:12px;color:var(--cb)">Click to browse or drag & drop</div>
+        <div style="font-size:10px;color:var(--cd);margin-top:3px" id="import-filename">netwatch_devices.csv</div>
+      </div>
+      <input type="file" id="import-file-input" accept=".csv" onchange="handleImportFile(this.files[0])">
+    </div>
+    <div id="import-preview" style="display:none;margin-bottom:12px">
+      <div style="font-size:10px;color:var(--cd);margin-bottom:5px">Preview (first 5 rows):</div>
+      <div id="import-preview-table" style="overflow-x:auto;max-height:120px;border:1px solid var(--border);border-radius:3px"></div>
+    </div>
+    <div id="import-result" style="display:none;padding:10px 12px;border-radius:4px;font-size:12px;font-family:var(--mono);margin-bottom:12px"></div>
+    <div class="mactions">
+      <button class="btn-cancel" onclick="closeImportModal()">Cancel</button>
+      <button class="btn-save" id="import-btn" style="background:rgba(0,229,160,.1);border-color:var(--c3);color:var(--c3)" onclick="doImport()" disabled>Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ SETTINGS ════════════════════════════════════════════ -->
+<div class="tpanel" id="tab-settings">
+  <div class="row2">
+    <div class="card">
+      <div class="ch"><div class="ct-label">⚙ Scanning</div></div>
+      <div class="cb-body">
+        <div class="setting-row">
+          <div><div class="setting-label">Scan Interval</div><div class="setting-desc">How often to run active nmap scan (seconds)</div></div>
+          <input class="setting-input" type="number" id="s-scan_interval" min="10" max="3600">
+        </div>
+        <div class="setting-row">
+          <div><div class="setting-label">Network Range</div><div class="setting-desc">'auto' or CIDR e.g. 192.168.1.0/24</div></div>
+          <input class="setting-input" type="text" id="s-network_range" style="width:180px;text-align:left">
+        </div>
+        <div class="setting-row">
+          <div><div class="setting-label">Passive Only</div><div class="setting-desc">Skip active nmap, only passive ARP capture</div></div>
+          <label class="toggle"><input type="checkbox" id="s-passive_only" onchange="saveSetting('passive_only',this.checked)"><span class="slider"></span></label>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct-label">⚙ Alert Thresholds</div></div>
+      <div class="cb-body">
+        <div class="setting-row">
+          <div><div class="setting-label">BW Spike Multiplier</div><div class="setting-desc">X times above baseline to alert (default 8)</div></div>
+          <input class="setting-input" type="number" id="s-bw_spike_multiplier" min="2" max="50" step="0.5">
+        </div>
+        <div class="setting-row">
+          <div><div class="setting-label">BW Spike Min Mbps</div><div class="setting-desc">Minimum Mbps for bandwidth spike alert</div></div>
+          <input class="setting-input" type="number" id="s-bw_spike_min_mbps" min="1" max="1000">
+        </div>
+        <div class="setting-row">
+          <div><div class="setting-label">Brute-force SYN/10s</div><div class="setting-desc">SYN packets per 10s to trigger alert (default 20)</div></div>
+          <input class="setting-input" type="number" id="s-brute_syn_threshold" min="5" max="200">
+        </div>
+        <div class="setting-row">
+          <div><div class="setting-label">DNS Flood /10s</div><div class="setting-desc">DNS queries per 10s to alert (default 200)</div></div>
+          <input class="setting-input" type="number" id="s-dns_flood_threshold" min="50" max="2000">
+        </div>
+        <div class="setting-row">
+          <div><div class="setting-label">Beacon /60s</div><div class="setting-desc">Same domain queries per 60s to alert (default 30)</div></div>
+          <input class="setting-input" type="number" id="s-beacon_threshold" min="10" max="500">
+        </div>
+        <div class="setting-row">
+          <div><div class="setting-label">Port Scan Ports/5s</div><div class="setting-desc">Unique ports per 5s to alert (default 30)</div></div>
+          <input class="setting-input" type="number" id="s-portscan_threshold" min="10" max="200">
+        </div>
+        <div class="setting-row">
+          <div><div class="setting-label">Rejoin Toast (min)</div><div class="setting-desc">Minutes offline before showing join toast again</div></div>
+          <input class="setting-input" type="number" id="s-device_rejoin_mins" min="1" max="1440">
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="row2">
+    <div class="card">
+      <div class="ch"><div class="ct-label">⚙ Notifications</div></div>
+      <div class="cb-body">
+        <div class="setting-row">
+          <div><div class="setting-label">Browser Notifications</div><div class="setting-desc">System push notifications for join/alerts</div></div>
+          <label class="toggle"><input type="checkbox" id="s-browser_notifications" onchange="saveSetting('browser_notifications',this.checked)"><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <div><div class="setting-label">Toast: New Device</div><div class="setting-desc">Show popup when a new device joins</div></div>
+          <label class="toggle"><input type="checkbox" id="s-toast_new_device" onchange="saveSetting('toast_new_device',this.checked)"><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <div><div class="setting-label">Toast: Security Alerts</div><div class="setting-desc">Show popup for high/critical security alerts</div></div>
+          <label class="toggle"><input type="checkbox" id="s-toast_security" onchange="saveSetting('toast_security',this.checked)"><span class="slider"></span></label>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch"><div class="ct-label">⚙ Suricata</div></div>
+      <div class="cb-body">
+        <div class="setting-row">
+          <div><div class="setting-label">Suricata Enabled</div><div class="setting-desc">Process EVE log (requires restart to change)</div></div>
+          <label class="toggle"><input type="checkbox" id="s-suricata_enabled" onchange="saveSetting('suricata_enabled',this.checked)"><span class="slider"></span></label>
+        </div>
+        <div class="setting-row">
+          <div><div class="setting-label">EVE Log Path</div><div class="setting-desc">Path to Suricata eve.json (requires restart)</div></div>
+          <input class="setting-input" type="text" id="s-suricata_eve_path" style="width:220px;text-align:left">
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct-label">⚙ Data Export</div></div>
+    <div class="cb-body" style="display:flex;flex-wrap:wrap;gap:10px">
+      <a href="/api/export/devices.csv"  class="btn-primary" download style="text-decoration:none">⬇ Devices CSV</a>
+      <a href="/api/export/alerts.csv"   class="btn-primary" download style="text-decoration:none">⬇ Alerts CSV</a>
+      <a href="/api/export/flows.csv"    class="btn-primary" download style="text-decoration:none">⬇ Flows CSV</a>
+      <a href="/api/export/suricata.csv" class="btn-primary" download style="text-decoration:none">⬇ Suricata CSV</a>
+      <a href="/api/export/events.csv"   class="btn-primary" download style="text-decoration:none">⬇ Events CSV</a>
+      <a href="/api/export/full.json"    class="btn-primary" download style="text-decoration:none">⬇ Full JSON</a>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct-label">⚙ Danger Zone</div></div>
+    <div class="cb-body" style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn-danger" onclick="confirmReset()">Reset Settings</button>
+      <button class="btn-danger" onclick="clearAllAlerts()">Clear All NetWatch Alerts</button>
+      <button class="btn-danger" onclick="clearSuricata()">Clear Suricata Cache</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><div class="ct-label">⚙ System Info</div></div>
+    <div class="cb-body" id="sys-info" style="font-family:var(--mono);font-size:11px;color:var(--ct);line-height:2"></div>
+  </div>
+</div>
+
+
+<!-- ════ PI-HOLE ════════════════════════════════════════════ -->
+<div class="tpanel" id="tab-pihole">
+
+  <!-- Status bar -->
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:8px 12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;flex-shrink:0;">
+    <div style="display:flex;align-items:center;gap:7px">
+      <span id="ph-dot" style="width:8px;height:8px;border-radius:50%;background:var(--cd);display:inline-block;flex-shrink:0"></span>
+      <span id="ph-status-text" style="font-size:11px;font-family:var(--mono);color:var(--ct)">Connecting...</span>
+    </div>
+    <div style="font-size:10px;color:var(--cd)">Admin: <span id="ph-url-show" style="color:#00b4d8;font-family:var(--mono)">—</span></div>
+    <div style="font-size:10px;color:var(--cd)">Updated: <span id="ph-last-update" style="color:var(--ct);font-family:var(--mono)">—</span></div>
+    <div id="ph-error-msg" style="font-size:10px;font-family:var(--mono);color:var(--c5);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+    <div style="display:flex;gap:6px;flex-shrink:0">
+      <a id="ph-open-link" href="#" target="_blank" class="chip" style="border-color:#00b4d8;color:#00b4d8;text-decoration:none">↗ Admin</a>
+      <button id="ph-toggle-btn" class="chip" style="border-color:var(--c5);color:var(--c5)" onclick="phToggle()">⏸ Disable</button>
+      <button class="chip" onclick="phLoad()">⟳ Refresh</button>
+      <button class="chip" style="border-color:#00b4d8;color:#00b4d8" onclick="phShowConfig()">⚙ Config</button>
+    </div>
+  </div>
+
+  <!-- Offline banner -->
+  <div id="ph-offline-banner" style="display:none;background:rgba(0,180,216,.08);border:1px solid rgba(0,180,216,.3);border-radius:4px;padding:12px 14px;font-size:12px;flex-shrink:0;">
+    <div style="font-weight:600;color:#00b4d8;margin-bottom:5px">🔵 Pi-hole not reachable</div>
+    <div style="color:var(--ct);line-height:1.9;font-size:11px">
+      <b style="color:var(--cb)">1.</b> Check password matches docker-compose.yml WEBPASSWORD → click ⚙ Config<br>
+      <b style="color:var(--cb)">2.</b> Verify Pi-hole is running: <code style="color:var(--c1);background:var(--bg3);padding:1px 5px;border-radius:2px">sudo docker ps | grep pihole</code><br>
+      <b style="color:var(--cb)">3.</b> Check logs: <code style="color:var(--c1);background:var(--bg3);padding:1px 5px;border-radius:2px">sudo docker logs netwatch-pro | grep -i pihole</code>
+    </div>
+  </div>
+
+  <!-- KPI row -->
+  <div class="sgrid sg6" style="flex-shrink:0">
+    <div class="scell"><div class="sl">Total Queries</div><div class="sv" style="color:#00b4d8" id="ph-total">—</div></div>
+    <div class="scell"><div class="sl">Blocked</div><div class="sv c5" id="ph-blocked">—</div></div>
+    <div class="scell"><div class="sl">% Blocked</div><div class="sv" style="color:#00b4d8" id="ph-pct">—</div></div>
+    <div class="scell"><div class="sl">Blocklist</div><div class="sv c3" id="ph-domains">—</div></div>
+    <div class="scell"><div class="sl">Clients</div><div class="sv c4" id="ph-clients">—</div></div>
+    <div class="scell"><div class="sl">Cached</div><div class="sv" style="color:#00b4d8" id="ph-cached">—</div></div>
+  </div>
+
+  <!-- Charts row -->
+  <div class="row2">
+    <div class="card" style="border-color:rgba(0,180,216,.3)">
+      <div class="ch">
+        <div class="ct-label" style="color:#00b4d8">🔵 Block Rate</div>
+        <div id="ph-gravity-date" style="font-size:10px;color:var(--cd)"></div>
+      </div>
+      <div class="cb-body" style="display:flex;align-items:center;justify-content:center;gap:28px;padding:16px">
+        <div style="position:relative;width:130px;height:130px;flex-shrink:0">
+          <svg viewBox="0 0 100 100" style="width:100%;height:100%;transform:rotate(-90deg)">
+            <circle cx="50" cy="50" r="40" fill="none" stroke="var(--bg4)" stroke-width="8"/>
+            <circle id="ph-ring" cx="50" cy="50" r="40" fill="none" stroke="#00b4d8" stroke-width="8"
+              stroke-dasharray="251.2" stroke-dashoffset="251.2" stroke-linecap="round"
+              style="transition:stroke-dashoffset 1s ease"/>
+          </svg>
+          <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+            <div id="ph-pct-big" style="font-family:var(--mono);font-size:22px;color:#00b4d8;font-weight:500">0%</div>
+            <div style="font-size:10px;color:var(--cd)">blocked</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div><div class="sl">Forwarded</div><div id="ph-forwarded" style="font-family:var(--mono);font-size:15px;color:var(--cb)">—</div></div>
+          <div><div class="sl">Cached</div><div id="ph-cached2" style="font-family:var(--mono);font-size:15px;color:var(--cb)">—</div></div>
+          <div><div class="sl">Unique Domains</div><div id="ph-unique-domains" style="font-family:var(--mono);font-size:15px;color:var(--cb)">—</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="border-color:rgba(0,180,216,.3)">
+      <div class="ch">
+        <div class="ct-label" style="color:#00b4d8">🔵 Query Timeline (24h)</div>
+        <div class="sbar">
+          <button class="chip on" id="ph-chart-all" onclick="phSetChart('all')">ALL</button>
+          <button class="chip" id="ph-chart-blocked" onclick="phSetChart('blocked')">BLOCKED</button>
+        </div>
+      </div>
+      <div class="cb-body"><div style="height:140px;position:relative"><canvas id="ph-overtime-chart"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- Top data row -->
+  <div class="row3">
+    <div class="card" style="border-color:rgba(0,180,216,.2)">
+      <div class="ch"><div class="ct-label" style="color:#00b4d8">🔵 Top Queried</div></div>
+      <div id="ph-top-queries" style="max-height:200px;overflow-y:auto"></div>
+    </div>
+    <div class="card" style="border-color:rgba(255,59,122,.2)">
+      <div class="ch"><div class="ct-label" style="color:var(--c5)">🔵 Top Blocked</div></div>
+      <div id="ph-top-blocked" style="max-height:200px;overflow-y:auto"></div>
+    </div>
+    <div class="card" style="border-color:rgba(0,180,216,.2)">
+      <div class="ch"><div class="ct-label" style="color:#00b4d8">🔵 Top Clients</div></div>
+      <div id="ph-top-clients" style="max-height:200px;overflow-y:auto"></div>
+    </div>
+  </div>
+
+  <!-- Query types + Open link -->
+  <div class="row2">
+    <div class="card" style="border-color:rgba(0,180,216,.2)">
+      <div class="ch"><div class="ct-label" style="color:#00b4d8">🔵 Query Types</div></div>
+      <div class="cb-body" id="ph-query-types" style="max-height:160px;overflow-y:auto"></div>
+    </div>
+    <div class="card" style="border-color:rgba(0,180,216,.3)">
+      <div class="ch"><div class="ct-label" style="color:#00b4d8">🔵 Pi-hole Admin</div></div>
+      <div class="cb-body" style="display:flex;flex-direction:column;align-items:center;gap:12px;padding:20px">
+        <div style="font-size:36px">🔵</div>
+        <div style="font-size:12px;color:var(--cd);text-align:center">Pi-hole v6 blocks iframe embedding.<br>Open the admin panel in a new tab.</div>
+        <a id="ph-open-link2" href="#" target="_blank"
+          style="padding:8px 22px;background:rgba(0,180,216,.1);border:1px solid #00b4d8;color:#00b4d8;border-radius:4px;text-decoration:none;font-size:12px;font-weight:600">
+          ↗ Open Pi-hole Admin
+        </a>
+        <div id="ph-admin-url-display" style="font-size:10px;color:var(--cd);font-family:var(--mono)"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Pi-hole Config Modal -->
+<div class="mover" id="ph-modal">
+  <div class="modal" style="min-width:400px">
+    <h3 style="color:#00b4d8">🔵 Pi-hole Configuration</h3>
+    <div class="mf">
+      <label>Backend URL (Python uses this — always use 127.0.0.1)</label>
+      <input type="text" id="ph-inp-url" placeholder="http://127.0.0.1:8888" style="font-family:var(--mono)">
+    </div>
+    <div class="mf">
+      <label>Public URL (browser "Open Admin" link — use real IP)</label>
+      <input type="text" id="ph-inp-pub" placeholder="http://10.10.32.12:8888" style="font-family:var(--mono)">
+    </div>
+    <div class="mf">
+      <label>Password (Pi-hole web UI password)</label>
+      <input type="password" id="ph-inp-pw" placeholder="your Pi-hole password" style="font-family:var(--mono)">
+    </div>
+    <div class="mactions">
+      <button class="btn-cancel" onclick="phCloseConfig()">Cancel</button>
+      <button class="btn-save" style="background:rgba(0,180,216,.1);border-color:#00b4d8;color:#00b4d8" onclick="phSaveConfig()">Save & Connect</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- content -->
+
+<div id="toasts"></div>
+
+<!-- Device edit modal -->
+<div class="mover" id="modal">
+  <div class="modal">
+    <h3>Edit Device</h3>
+    <div class="mf"><label>MAC</label><input type="text" id="m-mac" readonly style="opacity:.5"></div>
+    <div class="mf"><label>Friendly Label</label><input type="text" id="m-label" placeholder="e.g. Living Room TV"></div>
+    <div class="mf"><label>Notifications</label>
+      <div class="mrow"><span style="color:var(--cd)">Alert when device joins</span>
+      <label class="toggle"><input type="checkbox" id="m-alert" checked><span class="slider"></span></label></div>
+    </div>
+    <div class="mactions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveModal()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════
+let allDevices=[], allFlows=[], allAlerts=[], allDns=[], allTls=[], allHttp=[];
+let surAlerts=[], surCatChart=null, surTrafficChart=null;
+let topoData={nodes:[],edges:[]}, topoPhysics=true;
+let currentSettings={};
+let dnsType='all', devFilter='all', flowSort='bytes', alertFilter='all';
+let surFilter='all', surSrcMode='src', surChartMode='bytes';
+let pktFilter='all', editMac=null;
+const pktBuf=[], MAX_PKT=300;
+
+// ══════════════════════════════════════════════════════════════
+// WEBSOCKET
+// ══════════════════════════════════════════════════════════════
+const socket = io();
+socket.on('connect',()=>{ const p=document.getElementById('ws-pill'); p.className='ws-pill live'; p.innerHTML='<span class="wdot"></span>LIVE'; });
+socket.on('disconnect',()=>{ const p=document.getElementById('ws-pill'); p.className='ws-pill off'; p.innerHTML='<span class="wdot"></span>OFFLINE'; });
+socket.on('live_stats',s=>{
+  set('top-bps',fmtBps(s.bps)); set('top-pps',Math.round(s.pps));
+  set('d-flows',s.active_flows); set('d-pkts',fmtN(s.captured)); set('d-mbps',s.capture_mbps.toFixed(2));
+  set('ns-in',fmtBps(s.bps)); set('ns-pps',Math.round(s.pps));
+  const nsOut = document.getElementById('ns-out'); if(nsOut) nsOut.textContent = fmtBps(s.bps*0.3)||'—';
+  set('cap-total',fmtN(s.captured)); set('cap-pps',Math.round(s.pps));
+  set('cap-mbps',s.capture_mbps.toFixed(3)); set('cap-drop',fmtN(s.dropped));
+  if(s.alert_unread>0){ set('alert-badge',s.alert_unread); document.getElementById('alert-badge').style.display=''; set('d-alerts',s.alert_unread); }
+});
+socket.on('device_joined',d=>{ addEvent('joined',d); loadDevices(); loadStats(); });
+socket.on('device_toast', d=>{ toast('joined',d); });
+socket.on('device_left',d=>{ toast('left',d); addEvent('left',d); });
+socket.on('scan_complete',s=>{ addEvent('scan',{ip:s.network},`Scan — ${s.found} devices`); loadDevices(); loadStats(); loadFlows(); loadPD(); loadTalkers(); });
+socket.on('dns_query',d=>{ dnsRows.unshift(d); if(dnsRows.length>500) dnsRows.pop(); addPktRow({ts:d.ts,src:d.src,dst:'',proto:'UDP',app:'DNS',sport:0,dport:53,info:(d.is_response?'R:':'Q:')+d.query}); if(isTab('protocol')) renderDns(); });
+socket.on('tls_session',t=>{ addPktRow({ts:t.ts,src:t.src,dst:t.dst,proto:'TCP',app:'TLS',sport:0,dport:t.port,info:'SNI='+t.sni}); });
+socket.on('alert',a=>{ allAlerts.unshift(a); if(isTab('alerts')) renderAlerts(); updateAlertBadge(); if(a.sev!=='info') toastAlert(a); });
+socket.on('suricata_alert',a=>{ surAlerts.unshift(a); if(surAlerts.length>2000) surAlerts.pop(); if(isTab('suricata')) renderSurAlerts(); updateSurBadge(a); if(a.sev==='critical'||a.sev==='high') toast('alert-'+a.sev,{ip:a.src_ip||''},'⚡ Suricata: '+a.sev.toUpperCase(),(a.signature||'').slice(0,60)); });
+socket.on('settings_changed',s=>{ currentSettings=s; });
+
+// ══════════════════════════════════════════════════════════════
+// TABS
+// ══════════════════════════════════════════════════════════════
+function tab(name){
+  document.querySelectorAll('.ltab').forEach(t=>t.classList.toggle('active',t.dataset.t===name));
+  document.querySelectorAll('.tpanel').forEach(p=>{
+    const isActive = p.id === 'tab-' + name;
+    p.classList.toggle('active', isActive);
+    p.style.display = isActive ? 'flex' : 'none';
+  });
+  // Keep mobile drawer in sync
+  document.querySelectorAll('.mobile-tab').forEach(t=>t.classList.toggle('active',t.dataset.t===name));
+  // Push global filter into this tab's inputs
+  const _gfVal = document.getElementById('global-filter')?.value || '';
+  if(_gfVal){
+    for(const t of (GLOBAL_FILTER_TARGETS[name]||[])){
+      const el=document.getElementById(t.id);
+      if(el && el.value !== _gfVal) el.value = _gfVal;
+    }
+  }
+  if(name==='protocol') loadDPI();
+  if(name==='flows')    loadFlows();
+  if(name==='discovery') renderDisc();
+  if(name==='alerts')   loadAlerts();
+  if(name==='suricata') activateSuricata();
+  if(name==='topology') loadTopology();
+  if(name==='settings') loadSettings();
+  if(name==='pihole')   phLoad();
+}
+function isTab(name){ return document.getElementById('tab-'+name)?.classList.contains('active'); }
+
+// ══════════════════════════════════════════════════════════════
+// CHARTS
+// ══════════════════════════════════════════════════════════════
+const cOpts={animation:false,plugins:{legend:{display:false}},
+  scales:{x:{display:false},y:{display:true,ticks:{color:'#445e72',font:{family:'IBM Plex Mono',size:9}},grid:{color:'rgba(29,45,61,.5)'}}}};
+
+const bwChart=new Chart(document.getElementById('bw-chart'),{
+  type:'line',data:{labels:[],datasets:[{data:[],borderColor:'#00d4ff',borderWidth:1.5,backgroundColor:'rgba(0,212,255,.05)',fill:true,pointRadius:0,tension:.3}]},
+  options:{...cOpts,maintainAspectRatio:false,scales:{...cOpts.scales,y:{...cOpts.scales.y,ticks:{...cOpts.scales.y.ticks,callback:v=>fmtBps(v)}}}}
+});
+const capChart=new Chart(document.getElementById('cap-chart'),{
+  type:'bar',data:{labels:[],datasets:[{data:[],backgroundColor:'rgba(0,212,255,.2)',borderColor:'rgba(0,212,255,.6)',borderWidth:1}]},
+  options:{...cOpts,maintainAspectRatio:false}
+});
+
+function updateBW(series){
+  bwChart.data.labels=series.map((_,i)=>i+'s'); bwChart.data.datasets[0].data=series.map(s=>s.bps); bwChart.update('none');
+  capChart.data.labels=series.map((_,i)=>i+'s'); capChart.data.datasets[0].data=series.map(s=>s.pps); capChart.update('none');
+}
+
+// ══════════════════════════════════════════════════════════════
+// DATA LOADERS
+// ══════════════════════════════════════════════════════════════
+async function loadStats(){
+  const s=await getJ('/api/stats'); if(!s) return;
+  loadHealth();   // refresh health score with each stats load
+  set('d-online',s.devices.online); set('d-total',s.devices.total);
+  if(s.capture){ set('cap-ring',fmtN(s.capture.ring_size||0)); set('cap-ifaces',(s.capture.interfaces||[]).join(' ')); }
+  if(s.alerts){ set('al-total',s.alerts.total); set('al-unread',s.alerts.unread); const bs=s.alerts.by_sev||{}; set('al-crit',bs.critical||0); set('al-high',bs.high||0); set('al-warn',bs.warning||0); if(s.alerts.unread>0){set('alert-badge',s.alerts.unread);document.getElementById('alert-badge').style.display='';} }
+  // System info
+  const si=document.getElementById('sys-info');
+  if(si) si.innerHTML=`Network: <span style="color:var(--c1)">${esc(s.network)}</span> &nbsp;|&nbsp; Scan interval: <span style="color:var(--c1)">${s.scan_interval}s</span> &nbsp;|&nbsp; Suricata: <span style="color:${s.suricata?.available?'var(--c3)':'var(--cd)'}">${s.suricata?.available?'LIVE':'Not connected'}</span>`;
+}
+async function loadDevices(){ allDevices=await getJ('/api/devices')||[]; if(isTab('discovery')) renderDisc(); updateInsights(); }
+async function loadFlows(){ allFlows=await getJ(`/api/flows?sort=${flowSort}`)||[]; if(isTab('flows')) renderFlows(); const avg=allFlows.reduce((a,f)=>a+(f.rtt_ms||0),0)/(allFlows.length||1); set('f-rtt',avg.toFixed(1)+' ms'); set('f-ips',new Set([...allFlows.map(f=>f.src_ip),...allFlows.map(f=>f.dst_ip)]).size); set('f-count',allFlows.length); }
+async function loadBW(){ const s=await getJ('/api/bandwidth?n=60')||[]; updateBW(s); }
+async function loadPD(){
+  const d=await getJ('/api/protocols')||[];
+  const el=document.getElementById('proto-dist');
+  if(!d.length){el.innerHTML='<div style="color:var(--cd);text-align:center;padding:14px;font-size:11px">No data</div>';return;}
+  const cols=['#00d4ff','#7b61ff','#00e5a0','#ff9500','#ff3b7a','#ffd60a','#5ac8fa','#34c759'];
+  el.innerHTML=d.map((p,i)=>`<div class="pbar"><div class="pbh"><span class="pbn" style="color:${cols[i%cols.length]}">${esc(p.proto)}</span><span class="pbp">${p.pct}% · ${fmtBytes(p.bytes)}</span></div><div class="pbt"><div class="pbf" style="width:${p.pct}%;background:${cols[i%cols.length]}"></div></div></div>`).join('');
+}
+async function loadTalkers(){
+  const t=await getJ('/api/talkers')||[];
+  const el=document.getElementById('top-talkers');
+  if(!t.length){el.innerHTML='<div style="color:var(--cd);text-align:center;padding:14px;font-size:11px">No data</div>';return;}
+  const mx=t[0]?.bytes||1;
+  el.innerHTML=t.map((r,i)=>{
+    const geoId='geo-tt-'+r.ip.replace(/\./g,'-');
+    // Trigger async geoip lookup for external IPs
+    if(!r.ip.startsWith('10.') && !r.ip.startsWith('192.168') && !r.ip.startsWith('172.'))
+      loadGeoTip(r.ip, geoId);
+    return `<div style="display:grid;grid-template-columns:20px 120px 1fr 58px;align-items:center;gap:6px;padding:4px 10px;border-bottom:1px solid rgba(0,240,255,.04)">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--cd);text-align:center">${i+1}</div>
+      <div style="overflow:hidden">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--cyan);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.ip)}</div>
+        <div id="${geoId}" style="font-size:9px;color:var(--cd);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px"></div>
+      </div>
+      <div style="overflow:hidden">
+        <div style="height:4px;background:rgba(0,240,255,.1);border-radius:2px;overflow:hidden">
+          <div style="height:100%;width:${Math.round(r.bytes/mx*100)}%;background:var(--cyan);border-radius:2px;transition:width .6s ease"></div>
+        </div>
+      </div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--ct);text-align:right;white-space:nowrap">${fmtBytes(r.bytes)}</div>
+    </div>`;
+  }).join('');
+}
+async function loadDPI(){
+  const d=await getJ('/api/dpi')||{};
+  allDns=[...(d.dns||[]),...allDns].slice(0,500);
+  allTls=[...(d.tls||[]),...allTls].slice(0,200);
+  allHttp=[...(d.http||[]),...allHttp].slice(0,200);
+  renderDns(); renderTls(); renderHttp();
+}
+async function loadAlerts(){ allAlerts=await getJ('/api/alerts?limit=200')||[]; renderAlerts(); updateAlertBadge(); loadIncidents(); }
+
+// ══════════════════════════════════════════════════════════════
+// RENDERERS
+// ══════════════════════════════════════════════════════════════
+function renderDisc(){
+  const _gf=(document.getElementById('global-filter')?.value||'').trim().toLowerCase();
+  const q=(document.getElementById('dev-search').value||_gf).toLowerCase();
+  const rows=allDevices.filter(d=>{
+    if(devFilter==='online'&&!d.is_online) return false;
+    if(devFilter==='offline'&&d.is_online) return false;
+    if(q){
+      // IP and MAC use exact-prefix match; other fields use substring
+      if(ipMatch(d.ip, q))  return true;
+      if(ipMatch(d.mac, q)) return true;
+      return [d.hostname,d.vendor,d.os_guess,d.device_type,d.label].join(' ').toLowerCase().includes(q);
+    }
+    return true;
+  });
+  document.getElementById('disc-tbody').innerHTML=rows.map(d=>`<tr>
+    <td onclick="openModal('${d.mac}')" style="cursor:pointer"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${d.is_online?'var(--c3)':'var(--c5)'};${d.is_online?'box-shadow:0 0 5px var(--c3)':''}"></span></td>
+    <td class="mono" style="color:var(--c1);cursor:pointer" onclick="openModal('${d.mac}')">${esc(d.ip)}</td>
+    <td class="mono dim">${esc(d.mac)}</td>
+    <td title="Click to edit label" onclick="quickLabel(event,'${d.mac}','${(d.label||d.hostname||d.dhcp_hostname||'').replace(/'/g,'')}')" style="cursor:text;color:var(--c3)">${esc(d.label||d.hostname||d.dhcp_hostname||d.raw_hostname||'—')}</td>
+    <td class="dim">${esc(d.vendor||'—')}</td>
+    <td style="color:var(--c2)">${esc(d.os_guess||'—')}</td>
+    <td style="color:var(--c4)">${esc(d.device_type||'—')}</td>
+    <td class="mono dim">${d.ttl||'—'}</td>
+    <td class="dim">${fmtAge(d.last_seen)}</td>
+  </tr>`).join('');
+}
+
+function renderFlows(){
+  const _gf2=(document.getElementById('global-filter')?.value||'').trim().toLowerCase();
+  const q=(document.getElementById('flow-search').value||_gf2).toLowerCase();
+  const hideSelf=document.getElementById('flow-hide-self')?.checked;
+  const rows=allFlows.filter(f=>{
+    if(hideSelf && (f.dst_port===5000 || f.src_port===5000)) return false;
+    if(q && !ipMatch(f.src_ip+':'+String(f.src_port), q) && !ipMatch(f.dst_ip+':'+String(f.dst_port), q)) return false;
+    return true;
+  });
+  document.getElementById('flow-tbody').innerHTML=rows.slice(0,300).map(f=>`<tr>
+    <td class="mono" style="color:var(--c1)">${esc(f.src_ip)}:<span class="dim">${f.src_port}</span></td>
+    <td class="mono" style="color:var(--c1)">${esc(f.dst_ip)}:<span class="dim">${f.dst_port}</span></td>
+    <td><span class="pill pill-${(f.proto||'').toLowerCase()}">${esc(f.proto)}</span></td>
+    <td><span class="pill pill-${(f.app||'').toLowerCase()}">${esc(f.app||'—')}</span></td>
+    <td class="mono" style="color:var(--c4)">${fmtBytes(f.bytes)}</td>
+    <td class="mono dim">${fmtN(f.pkts)}</td>
+    <td class="mono" style="color:${f.rtt_ms>100?'var(--c5)':'var(--c3)'}">${f.rtt_ms?f.rtt_ms.toFixed(1)+'ms':'—'}</td>
+    <td class="mono dim">${f.jitter_ms?f.jitter_ms.toFixed(1)+'ms':'—'}</td>
+    <td class="mono dim">${f.duration?f.duration.toFixed(1)+'s':'—'}</td>
+    <td style="font-size:10px;color:${f.established?'var(--c3)':'var(--c4)'}">${f.established?'ESTAB':'INIT'}</td>
+  </tr>`).join('');
+}
+
+// DNS
+let dnsRows=[];
+function renderDns(){
+  const _gf3=(document.getElementById('global-filter')?.value||'').trim().toLowerCase();
+  const ipF=(document.getElementById('dns-ip')?.value||_gf3).toLowerCase();
+  const qF=(document.getElementById('dns-q')?.value||'').toLowerCase();
+  const combined=[...dnsRows,...allDns].slice(0,500);
+  const seen=new Set(); const rows=[];
+  for(const d of combined){ const k=`${d.ts}${d.src}${d.query}`; if(!seen.has(k)){seen.add(k);rows.push(d);} }
+  const filtered=rows.filter(d=>{
+    if(dnsType==='query'&&d.is_response) return false;
+    if(dnsType==='resp'&&!d.is_response) return false;
+    if(ipF&&!ipMatch(d.src||'', ipF)) return false;
+    if(qF&&!(d.query||'').toLowerCase().includes(qF)) return false;
+    return true;
+  });
+  set('dns-count',filtered.length+' entries');
+  document.getElementById('dns-tbody').innerHTML=filtered.slice(0,200).map(d=>`<tr>
+    <td class="mono dim">${fmtT(d.ts)}</td>
+    <td class="mono" style="color:var(--c1)">${esc(d.src)}</td>
+    <td class="mono" style="color:var(--c3)">${esc(d.query)}</td>
+    <td><span class="pill ${d.is_response?'pill-tls':'pill-dns'}">${d.is_response?'RESP':'QUERY'}</span></td>
+    <td class="mono dim">${esc((d.answers||[]).join(', ').slice(0,50))}</td>
+  </tr>`).join('');
+}
+function renderTls(){
+  set('tls-count',allTls.length+' sessions');
+  document.getElementById('tls-tbody').innerHTML=allTls.slice(0,100).map(t=>`<tr>
+    <td class="mono dim">${fmtT(t.ts)}</td><td class="mono" style="color:var(--c1)">${esc(t.src)}</td>
+    <td class="mono" style="color:var(--c3)">${esc(t.sni||t.dst)}</td>
+    <td class="mono" style="color:var(--c2);font-size:10px">${esc(t.ja3?t.ja3.slice(0,12)+'…':'—')}</td>
+    <td class="mono dim">${t.port}</td>
+  </tr>`).join('');
+}
+function renderHttp(){
+  const mc={GET:'var(--c3)',POST:'var(--c4)',PUT:'var(--c2)',DELETE:'var(--c5)'};
+  document.getElementById('http-tbody').innerHTML=allHttp.slice(0,100).map(h=>`<tr>
+    <td class="mono dim">${fmtT(h.ts)}</td>
+    <td class="mono" style="color:${mc[h.method]||'var(--cd)'}">${esc(h.method||h.status||'—')}</td>
+    <td class="mono" style="color:var(--c1)">${esc(h.host)}</td>
+    <td class="mono dim">${esc((h.path||'').slice(0,40))}</td>
+    <td class="mono" style="color:${h.status>=400?'var(--c5)':h.status>=200?'var(--c3)':'var(--cd)'}">${h.status||'—'}</td>
+    <td class="dim">${esc((h.ua||'').slice(0,40))}</td>
+  </tr>`).join('');
+}
+
+// Alerts
+function renderAlerts(){
+  const filt=alertFilter;
+  const gf=(document.getElementById('global-filter')?.value||'').trim().toLowerCase();
+  const rows=allAlerts.filter(a=>{
+    if(filt==='unread'   &&  a.dismissed) return false;
+    if(filt==='network'  && a.cat!=='network')  return false;
+    if(filt==='security' && a.cat!=='security') return false;
+    if(filt==='traffic'  && a.cat!=='traffic')  return false;
+    // Global IP/MAC filter - exact IP prefix match
+    if(gf){
+      if(!ipMatch(a.src_ip||'', gf) && !ipMatch(a.dst_ip||'', gf) &&
+         !(a.mac||'').toLowerCase().includes(gf) &&
+         !(a.detail||'').toLowerCase().includes(gf) &&
+         !(a.title||'').toLowerCase().includes(gf)) return false;
+    }
+    return true;
+  });
+  const sevColor={critical:'var(--red)',high:'var(--amber)',warning:'#ff8800',info:'var(--cyan)'};
+  document.getElementById('alert-list').innerHTML=rows.length?rows.map(a=>`
+    <div class="alert-item ${a.sev} ${a.dismissed?'dismissed':''}" id="ai-${a.id}">
+      <button class="ai-dismiss" onclick="dismissAlert('${a.id}')">×</button>
+      <div class="ai-head">
+        <span class="pill pill-${a.sev}">${(a.sev||'info').toUpperCase()}</span>
+        <span class="pill">${esc(a.cat||'')}</span>
+        <span class="ai-title">${esc(a.title)}</span>
+        <span class="ai-time">${fmtT(a.ts)}</span>
+      </div>
+      <div class="ai-detail">${esc(a.detail)}</div>
+      ${a.src_ip?`<div class="ai-meta">
+        <span style="color:var(--cyan);font-family:var(--mono)">${esc(a.src_ip)}</span>
+        ${a.dst_ip?` → <span style="color:var(--c2)">${esc(a.dst_ip)}</span>`:''}
+        ${a.mac?` &nbsp;|&nbsp; <span style="color:var(--cd)">${esc(a.mac)}</span>`:''}
+        &nbsp;<span id="geo-${a.src_ip?.replace(/\./g,'-')}" style="font-size:9px;color:var(--cd)"></span>
+        <button onclick="showBlockDialog('${esc(a.src_ip)}')"
+          style="margin-left:8px;padding:1px 7px;border:1px solid rgba(255,40,85,.35);color:var(--c5);
+                 background:rgba(255,40,85,.07);border-radius:2px;cursor:pointer;font-size:9px;
+                 font-family:var(--mono);font-weight:600;letter-spacing:.5px">
+          🚫 BLOCK
+        </button>
+      </div>`:''}
+    </div>`).join(''):'<div style="color:var(--cd);text-align:center;padding:28px;font-size:12px">No alerts'+( filt!=='all'?' matching filter':'')+' ✓</div>';
+  set('al-total',allAlerts.length); set('al-unread',allAlerts.filter(a=>!a.dismissed).length);
+  const bs=allAlerts.reduce((acc,a)=>{acc[a.sev]=(acc[a.sev]||0)+1;return acc;},{});
+  set('al-crit',bs.critical||0); set('al-high',bs.high||0); set('al-warn',bs.warning||0);
+}
+
+// ══════════════════════════════════════════════════════════════
+// TOPOLOGY
+// ══════════════════════════════════════════════════════════════
+let topoAnimFrame=null, topoCanvas=null, topoCtx=null;
+let topoTransform={x:0,y:0,scale:1}, topoDrag={active:false,sx:0,sy:0,tx:0,ty:0};
+let topoNodePositions={}, topoVelocities={};
+
+const NODE_COLORS={hub:'#00d4ff',endpoint:'#00e5a0',external:'#ff3b7a',isolated:'#445e72'};
+
+function initTopoCanvas(){
+  topoCanvas=document.getElementById('topo-canvas');
+  if(!topoCanvas) return;
+  topoCtx=topoCanvas.getContext('2d');
+  function resizeTopoCanvas(){
+    const container=topoCanvas.parentElement;
+    topoCanvas.width=container.offsetWidth||topoCanvas.offsetWidth||680;
+    topoCanvas.height=container.offsetHeight||420;
+    if(topoData.nodes?.length) renderTopology();
+  }
+  resizeTopoCanvas();
+  // Watch for resize (when user drags the resizable div)
+  new ResizeObserver(()=>resizeTopoCanvas()).observe(topoCanvas.parentElement);
+
+  topoCanvas.onmousedown=e=>{ topoDrag={active:true,sx:e.clientX,sy:e.clientY,tx:topoTransform.x,ty:topoTransform.y}; };
+  topoCanvas.onmousemove=e=>{ if(!topoDrag.active) return; topoTransform.x=topoDrag.tx+(e.clientX-topoDrag.sx); topoTransform.y=topoDrag.ty+(e.clientY-topoDrag.sy); };
+  topoCanvas.onmouseup=()=>{ topoDrag.active=false; };
+  topoCanvas.onwheel=e=>{ e.preventDefault(); const d=e.deltaY>0?.9:1.1; topoTransform.scale=Math.min(4,Math.max(.2,topoTransform.scale*d)); };
+}
+
+async function loadTopology(){
+  if(!topoCanvas) initTopoCanvas();
+  const d=await getJ('/api/topology');
+  if(!d) return;
+  topoData=d;
+  set('topo-nodes',d.stats?.node_count||0);
+  set('topo-edges',d.stats?.edge_count||0);
+  set('topo-subnets',d.stats?.subnet_count||0);
+
+  // Initialize positions for new nodes
+  const cx=topoCanvas.width/2, cy=topoCanvas.height/2;
+  (d.nodes||[]).forEach((n,i)=>{
+    if(!topoNodePositions[n.id]){
+      const angle=(i/(d.nodes.length||1))*Math.PI*2;
+      const r=Math.min(cx,cy)*0.6;
+      topoNodePositions[n.id]={x:cx+Math.cos(angle)*r,y:cy+Math.sin(angle)*r};
+      topoVelocities[n.id]={vx:0,vy:0};
+    }
+  });
+
+  renderTopology();
+
+  // Top nodes table
+  const sorted=(d.nodes||[]).slice(0,20);
+  document.getElementById('topo-tbody').innerHTML=sorted.map(n=>`<tr onclick="showTopoDetail('${n.id}')">
+    <td class="mono" style="color:var(--c1)">${esc(n.ip)}</td>
+    <td>${esc(n.label!==n.ip?n.label:'—')}</td>
+    <td><span class="pill" style="background:rgba(255,255,255,.05);color:var(--ct)">${esc(n.role)}</span></td>
+    <td class="mono" style="color:var(--c7)">${n.connections}</td>
+    <td class="mono dim">${fmtBytes(n.bytes_in)}</td>
+    <td class="mono dim">${fmtBytes(n.bytes_out)}</td>
+    <td class="mono dim">${esc(n.subnet)}</td>
+  </tr>`).join('');
+}
+
+function renderTopology(){
+  if(!topoCtx||!topoCanvas) return;
+  const ctx=topoCtx;
+  const w=topoCanvas.width, h=topoCanvas.height;
+  ctx.clearRect(0,0,w,h);
+
+  if(topoPhysics) applyForces();
+
+  ctx.save();
+  ctx.translate(topoTransform.x,topoTransform.y);
+  ctx.scale(topoTransform.scale,topoTransform.scale);
+
+  // Draw edges
+  (topoData.edges||[]).forEach(e=>{
+    const a=topoNodePositions[e.source], b=topoNodePositions[e.target];
+    if(!a||!b) return;
+    ctx.beginPath();
+    ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y);
+    ctx.strokeStyle='rgba(29,45,61,.8)';
+    ctx.lineWidth=Math.max(.5,Math.min(3,(e.width||1)));
+    ctx.stroke();
+  });
+
+  // Draw nodes
+  (topoData.nodes||[]).forEach(n=>{
+    const pos=topoNodePositions[n.id];
+    if(!pos) return;
+    const r=Math.max(6,Math.min(18,4+n.connections*1.5));
+    const color=NODE_COLORS[n.role]||'#445e72';
+
+    // Glow for hubs
+    if(n.role==='hub'){
+      ctx.shadowColor=color; ctx.shadowBlur=12;
+    }
+
+    ctx.beginPath();
+    ctx.arc(pos.x,pos.y,r,0,Math.PI*2);
+    ctx.fillStyle=color+'22';
+    ctx.fill();
+    ctx.strokeStyle=color;
+    ctx.lineWidth=1.5;
+    ctx.stroke();
+    ctx.shadowBlur=0;
+
+    // Label
+    ctx.fillStyle='#b8ccd8';
+    ctx.font=`${Math.max(8,Math.min(11,r))}px IBM Plex Mono`;
+    ctx.textAlign='center';
+    const label=n.label!==n.ip && n.label ? n.label.slice(0,12) : n.ip;
+    ctx.fillText(label,pos.x,pos.y+r+10);
+  });
+
+  ctx.restore();
+  if(topoPhysics) topoAnimFrame=requestAnimationFrame(renderTopology);
+}
+
+function applyForces(){
+  const nodes=topoData.nodes||[];
+  const edges=topoData.edges||[];
+  const K=80, REPEL=3000, DAMP=0.85, DT=0.5;
+
+  // Repulsion between all nodes
+  nodes.forEach((a,i)=>{
+    nodes.forEach((b,j)=>{
+      if(i>=j) return;
+      const pa=topoNodePositions[a.id], pb=topoNodePositions[b.id];
+      if(!pa||!pb) return;
+      const dx=pa.x-pb.x, dy=pa.y-pb.y;
+      const dist=Math.max(1,Math.sqrt(dx*dx+dy*dy));
+      const f=REPEL/(dist*dist);
+      const fx=dx/dist*f, fy=dy/dist*f;
+      topoVelocities[a.id].vx+=fx; topoVelocities[a.id].vy+=fy;
+      topoVelocities[b.id].vx-=fx; topoVelocities[b.id].vy-=fy;
+    });
+  });
+
+  // Spring attraction along edges
+  edges.forEach(e=>{
+    const a=topoNodePositions[e.source], b=topoNodePositions[e.target];
+    const va=topoVelocities[e.source], vb=topoVelocities[e.target];
+    if(!a||!b||!va||!vb) return;
+    const dx=b.x-a.x, dy=b.y-a.y;
+    const dist=Math.max(1,Math.sqrt(dx*dx+dy*dy));
+    const f=(dist-K)/dist;
+    const fx=dx*f*.05, fy=dy*f*.05;
+    va.vx+=fx; va.vy+=fy;
+    vb.vx-=fx; vb.vy-=fy;
+  });
+
+  // Center gravity
+  const cx=topoCanvas.width/2/topoTransform.scale, cy=topoCanvas.height/2/topoTransform.scale;
+  nodes.forEach(n=>{
+    const p=topoNodePositions[n.id], v=topoVelocities[n.id];
+    if(!p||!v) return;
+    v.vx+=(cx-p.x)*0.002; v.vy+=(cy-p.y)*0.002;
+    v.vx*=DAMP; v.vy*=DAMP;
+    p.x+=v.vx*DT; p.y+=v.vy*DT;
+  });
+}
+
+function toggleTopoPhysics(){
+  topoPhysics=!topoPhysics;
+  document.getElementById('topo-physics-btn').textContent=topoPhysics?'Physics ON':'Physics OFF';
+  if(topoPhysics) renderTopology();
+  else { cancelAnimationFrame(topoAnimFrame); renderTopology(); }
+}
+
+function showTopoDetail(ip){
+  // Navigate to flows tab filtered by this IP
+  tab('flows');
+  document.getElementById('flow-search').value=ip;
+  filterFlows();
+}
+
+// ══════════════════════════════════════════════════════════════
+// SURICATA
+// ══════════════════════════════════════════════════════════════
+let surInitialized=false;
+
+function initSurCharts(){
+  if(surTrafficChart) surTrafficChart.destroy();
+  surTrafficChart=new Chart(document.getElementById('sur-traffic-chart'),{
+    type:'line',data:{labels:[],datasets:[{data:[],borderColor:'#ff9500',borderWidth:1.5,backgroundColor:'rgba(255,149,0,.08)',fill:true,pointRadius:0,tension:.3}]},
+    options:{...cOpts,maintainAspectRatio:false}
+  });
+  if(surCatChart) surCatChart.destroy();
+  surCatChart=new Chart(document.getElementById('sur-cat-chart'),{
+    type:'doughnut',
+    data:{labels:[],datasets:[{data:[],backgroundColor:['#ff3b7a','#ff9500','#ffd60a','#00d4ff','#7b61ff','#00e5a0','#ff6b35','#5ac8fa','#34c759','#af52de'],borderColor:'#0c1219',borderWidth:2}]},
+    options:{maintainAspectRatio:false,animation:false,plugins:{legend:{display:true,position:'right',labels:{color:'#b8ccd8',font:{family:'IBM Plex Mono',size:9},boxWidth:10}}}}
+  });
+}
+
+async function loadSuricata(){
+  const s=await getJ('/api/suricata/summary'); if(!s) return;
+  const dot=document.getElementById('sur-status-dot'), txt=document.getElementById('sur-status-text');
+  const banner=document.getElementById('sur-offline-banner');
+  const pathEl=document.getElementById('sur-eve-path-show'), parsedEl=document.getElementById('sur-parsed-count');
+  if(pathEl) pathEl.textContent=s.eve_path||'/var/log/suricata/eve.json';
+  if(parsedEl) parsedEl.textContent=fmtN((s.total_alerts||0)+(s.total_flows||0));
+  if(dot&&txt){
+    if(s.available){ dot.style.background='var(--c3)'; dot.style.boxShadow='0 0 6px var(--c3)'; txt.textContent='Suricata LIVE'; txt.style.color='var(--c3)'; }
+    else { dot.style.background='var(--c4)'; dot.style.boxShadow=''; txt.textContent='EVE log not found'; txt.style.color='var(--c4)'; }
+  }
+  if(banner) banner.style.display=s.available?'none':'block';
+  set('sur-total',s.total_alerts||0); set('sur-flows',s.total_flows||0);
+  const sv=s.sev_counts||{}; set('sur-crit',sv.critical||0); set('sur-high',sv.high||0); set('sur-warn',sv.warning||0);
+  const eng=s.engine_stats||{}; if(eng.uptime) set('sur-uptime',fmtDuration(eng.uptime));
+  const cats=s.alert_cats||[];
+  if(surCatChart&&cats.length){ surCatChart.data.labels=cats.map(c=>c.cat.length>20?c.cat.slice(0,20)+'…':c.cat); surCatChart.data.datasets[0].data=cats.map(c=>c.count); surCatChart.update('none'); }
+  renderSurProtos(s.app_protos||[],s.net_protos||[]);
+  const b=document.getElementById('sur-badge');
+  const crit=(sv.critical||0)+(sv.high||0);
+  if(crit>0){b.textContent=crit>99?'99+':crit;b.style.display='';}else b.style.display='none';
+}
+
+async function loadSurAlerts(){
+  const d=await getJ('/api/suricata/alerts?limit=500'); if(d) { surAlerts=d; renderSurAlerts(); }
+}
+async function loadSurSeries(){
+  const s=await getJ('/api/suricata/series'); if(!s||!surTrafficChart) return;
+  const series=s[surChartMode]||[];
+  surTrafficChart.data.labels=series.map((_,i)=>i+'s');
+  surTrafficChart.data.datasets[0].data=series.map(p=>p.v);
+  surTrafficChart.update('none');
+}
+async function loadSurDns(){
+  const d=await getJ('/api/suricata/dns?limit=100'); if(!d) return;
+  set('sur-dns-count',d.length+' queries');
+  document.getElementById('sur-dns-tbody').innerHTML=d.map(r=>`<tr>
+    <td class="mono dim">${fmtT(r.ts)}</td><td class="mono" style="color:var(--c1)">${esc(r.src_ip||'')}</td>
+    <td class="mono" style="color:var(--c3)">${esc(r.query||'')}</td>
+    <td><span class="pill pill-dns">${esc(r.rrtype||r.type||'A')}</span></td>
+    <td class="mono dim">${esc((r.answers||[]).join(', ').slice(0,40))}</td>
+  </tr>`).join('');
+}
+async function loadSurTls(){
+  const d=await getJ('/api/suricata/tls?limit=100'); if(!d) return;
+  set('sur-tls-count',d.length+' sessions');
+  document.getElementById('sur-tls-tbody').innerHTML=d.map(r=>`<tr>
+    <td class="mono dim">${fmtT(r.ts)}</td><td class="mono" style="color:var(--c1)">${esc(r.src_ip||'')}</td>
+    <td class="mono" style="color:var(--c3)">${esc(r.sni||r.dst_ip||'')}</td>
+    <td class="mono dim">${esc(r.version||'')}</td>
+    <td class="mono" style="color:var(--c2);font-size:10px">${esc(r.ja3?r.ja3.slice(0,12)+'…':'—')}</td>
+    <td class="mono" style="color:var(--c2);font-size:10px">${esc(r.ja3s?r.ja3s.slice(0,12)+'…':'—')}</td>
+  </tr>`).join('');
+}
+async function loadSurSources(){
+  const url=surSrcMode==='src'?'/api/suricata/sources':'/api/suricata/dests';
+  const d=await getJ(url); if(!d) return;
+  const mx=d[0]?.count||1;
+  document.getElementById('sur-src-list').innerHTML=d.map((r,i)=>`<div class="trow">
+    <div class="trank">${i+1}</div><div class="tip">${esc(r.ip)}</div>
+    <div style="font-size:10px;color:var(--cd);flex:1;text-align:right;padding-right:7px">${esc(r.geo||'')}</div>
+    <div class="tbar"><div class="tfill" style="width:${Math.round(r.count/mx*100)}%;background:var(--c4)"></div></div>
+    <div class="tval">${r.count}</div>
+  </div>`).join('');
+}
+
+function renderSurAlerts(){
+  const sigF=(document.getElementById('sur-sig-filter')?.value||'').toLowerCase();
+  const ipF=(document.getElementById('sur-ip-filter')?.value||'').toLowerCase();
+  const rows=surAlerts.filter(a=>{
+    if(surFilter!=='all'&&a.sev!==surFilter) return false;
+    if(sigF&&!(a.signature||'').toLowerCase().includes(sigF)) return false;
+    if(ipF && !ipMatch(a.src_ip||'', ipF) && !ipMatch(a.dst_ip||'', ipF)) return false;
+    return true;
+  });
+  set('sur-count',rows.length+' alerts');
+  const sc={critical:'var(--c5)',high:'var(--c4)',warning:'var(--c6)',info:'var(--c1)'};
+  const si={critical:'🚨',high:'🔴',warning:'⚠️',info:'ℹ️'};
+  document.getElementById('sur-alert-tbody').innerHTML=rows.slice(0,300).map(a=>`<tr>
+    <td>${si[a.sev]||'•'}</td>
+    <td><span class="pill pill-${a.sev}" style="color:${sc[a.sev]||'var(--ct)'}">${(a.sev||'').toUpperCase()}</span></td>
+    <td style="font-size:11px;color:var(--cb);max-width:260px;overflow:hidden;text-overflow:ellipsis" title="${esc(a.signature||'')}">${esc(a.signature||'—')}</td>
+    <td style="font-size:10px;color:var(--cd);max-width:130px;overflow:hidden;text-overflow:ellipsis">${esc(a.category||'—')}</td>
+    <td class="mono" style="color:var(--c1)">${esc(a.src_ip||'')}${a.src_port?':<span class="dim">'+a.src_port+'</span>':''}</td>
+    <td class="mono" style="color:var(--c1)">${esc(a.dst_ip||'')}${a.dst_port?':<span class="dim">'+a.dst_port+'</span>':''}</td>
+    <td><span class="pill pill-${(a.proto||'').toLowerCase()}">${esc(a.proto||'—')}</span></td>
+    <td style="font-size:10px">${esc(a.app_proto||'—')}</td>
+    <td style="font-size:10px;font-family:var(--mono);color:${a.action==='blocked'?'var(--c5)':'var(--c3)'}">${esc(a.action||'—')}</td>
+    <td class="mono dim">${fmtT(a.ts)}</td>
+  </tr>`).join('');
+}
+
+function renderSurProtos(appP,netP){
+  const el=document.getElementById('sur-proto-bars'); if(!el) return;
+  const all={};
+  [...appP,...netP].forEach(p=>{ all[p.proto]=(all[p.proto]||0)+p.count; });
+  const sorted=Object.entries(all).sort((a,b)=>b[1]-a[1]).slice(0,12);
+  if(!sorted.length){el.innerHTML='<div style="color:var(--cd);font-size:11px;text-align:center;padding:10px">No data</div>';return;}
+  const mx=sorted[0][1]||1;
+  const cols=['#ff9500','#00d4ff','#7b61ff','#00e5a0','#ff3b7a','#ffd60a','#5ac8fa','#34c759'];
+  el.innerHTML=sorted.map(([p,c],i)=>`<div class="pbar"><div class="pbh"><span class="pbn" style="color:${cols[i%cols.length]}">${esc(p)}</span><span class="pbp">${fmtN(c)}</span></div><div class="pbt"><div class="pbf" style="width:${Math.round(c/mx*100)}%;background:${cols[i%cols.length]}"></div></div></div>`).join('');
+}
+
+function updateSurBadge(a){
+  if(a.sev!=='critical'&&a.sev!=='high') return;
+  const b=document.getElementById('sur-badge');
+  const cur=parseInt(b.textContent||'0');
+  b.textContent=cur+1; b.style.display='';
+}
+
+function activateSuricata(){
+  if(!surInitialized){ initSurCharts(); surInitialized=true; }
+  Promise.all([loadSuricata(),loadSurAlerts(),loadSurSeries(),loadSurDns(),loadSurTls(),loadSurSources()]);
+}
+
+function setSurF(f){ surFilter=f; ['all','critical','high','warning'].forEach(x=>document.getElementById('surf-'+x)?.classList.toggle('on',x===f)); renderSurAlerts(); }
+function setSurChart(m){ surChartMode=m; ['bytes','pkts','alerts'].forEach(x=>document.getElementById('sur-chart-'+x)?.classList.toggle('on',x===m)); loadSurSeries(); }
+function toggleSurSrc(){ surSrcMode=surSrcMode==='src'?'dst':'src'; document.getElementById('sur-src-toggle').textContent=surSrcMode==='src'?'SHOW DESTS':'SHOW SRCS'; loadSurSources(); }
+async function clearSuricata(){ if(!confirm('Clear Suricata cache?')) return; await fetch('/api/suricata/clear',{method:'POST'}); surAlerts=[]; renderSurAlerts(); await loadSuricata(); }
+function fmtDuration(s){ if(s<60) return s+'s'; if(s<3600) return Math.floor(s/60)+'m '+s%60+'s'; return Math.floor(s/3600)+'h '+Math.floor((s%3600)/60)+'m'; }
+
+// ══════════════════════════════════════════════════════════════
+// SETTINGS
+// ══════════════════════════════════════════════════════════════
+async function loadSettings(){
+  const s=await getJ('/api/settings'); if(!s) return;
+  currentSettings=s;
+  // Populate number inputs
+  ['scan_interval','bw_spike_multiplier','bw_spike_min_mbps','brute_syn_threshold',
+   'dns_flood_threshold','beacon_threshold','portscan_threshold','device_rejoin_mins',
+   'network_range','suricata_eve_path'].forEach(k=>{
+    const el=document.getElementById('s-'+k);
+    if(el) el.value=s[k]??'';
+  });
+  // Populate checkboxes
+  ['passive_only','browser_notifications','toast_new_device','toast_security','suricata_enabled'].forEach(k=>{
+    const el=document.getElementById('s-'+k);
+    if(el) el.checked=!!s[k];
+  });
+}
+
+async function saveSetting(key, value){
+  await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({[key]:value})});
+}
+
+async function saveNumericSetting(key){
+  const el=document.getElementById('s-'+key); if(!el) return;
+  const v=el.type==='number'?parseFloat(el.value):el.value;
+  if(isNaN(v)&&el.type==='number') return;
+  await saveSetting(key, v);
+}
+
+// Wire up numeric inputs on blur
+document.querySelectorAll('.setting-input').forEach(el=>{
+  el.addEventListener('blur',()=>{
+    const key=el.id.replace('s-','');
+    saveNumericSetting(key);
+  });
+  el.addEventListener('keydown',e=>{ if(e.key==='Enter') { saveNumericSetting(el.id.replace('s-','')); el.blur(); } });
+});
+
+async function resetSettings(){
+  if(!confirm('Reset all settings to defaults?')) return;
+  await fetch('/api/settings/reset',{method:'POST'});
+  loadSettings();
+}
+
+// ══════════════════════════════════════════════════════════════
+// PACKET STREAM
+// ══════════════════════════════════════════════════════════════
+function sanitize(s){
+  // Replace non-printable / non-ASCII chars with readable placeholders
+  if(!s) return '';
+  return String(s).replace(/[\x00-\x1f\x7f-\x9f]/g,'·').replace(/[^\x20-\x7e·]/g,'?');
+}
+function addPktRow(p){
+  if(p.info) p.info = sanitize(p.info);
+  if(p.src)  p.src  = sanitize(p.src);
+  if(p.dst)  p.dst  = sanitize(p.dst);
+  pktBuf.unshift(p);
+  if(pktBuf.length>MAX_PKT) pktBuf.pop();
+  if(isTab('capture')) renderPkts();
+}
+function renderPkts(){
+  const f=pktFilter;
+  const _gfPkt=(document.getElementById('global-filter')?.value||'').trim().toLowerCase();
+  const rows=pktBuf.filter(p=>{
+    if(_gfPkt && !ipMatch(p.src||'',_gfPkt) && !ipMatch(p.dst||'',_gfPkt)) return false;
+    return f==='all'||p.proto===f.toUpperCase()||(f==='dns'&&p.app==='DNS');
+  });
+  const pc={TCP:'pc1',UDP:'pc2',ARP:'pc4',ICMP:'pc3'};
+  const protoColors={'TCP':'#00d4ff','UDP':'#7b61ff','DNS':'#00e5a0','ARP':'#ff9500','ICMP':'#ff8800','TLS':'#9945ff','HTTPS':'#9945ff','HTTP':'#ff3b7a'};
+  const protoGlow={'TCP':'rgba(0,212,255,.15)','UDP':'rgba(123,97,255,.15)','DNS':'rgba(0,229,160,.15)','ARP':'rgba(255,149,0,.15)','ICMP':'rgba(255,136,0,.15)','TLS':'rgba(153,69,255,.15)','HTTP':'rgba(255,59,122,.15)'};
+  document.getElementById('pkt-rows').innerHTML=rows.slice(0,150).map(p=>{
+    const proto = p.proto||'';
+    const app   = p.app||'';
+    const label = app || proto;
+    const pcolor= protoColors[app]||protoColors[proto]||'var(--cd)';
+    const glow  = protoGlow[app]||protoGlow[proto]||'transparent';
+    return `
+    <div class="prow" style="background:${glow};border-bottom:1px solid rgba(0,240,255,.03)">
+      <span style="font-family:var(--mono);font-size:9px;color:var(--cd)">${fmtT(p.ts)}</span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--cyan)">${esc(p.src||'')}</span>
+      <span style="font-family:var(--mono);font-size:10px;color:var(--c2)">${esc(p.dst||'')}</span>
+      <span style="padding:1px 5px;border-radius:2px;font-family:var(--mono);font-size:9px;font-weight:700;color:${pcolor};background:${glow};border:1px solid ${pcolor}40;letter-spacing:.3px">${esc(proto)}</span>
+      <span style="font-size:10px;color:${pcolor};font-family:var(--mono);font-weight:600">${esc(app)}</span>
+      <span class="dim">${p.sport||''}</span>
+      <span class="dim">${p.dport||''}</span>
+      <span style="font-size:10px;color:var(--ct);overflow:hidden;text-overflow:ellipsis">${esc(p.info||'')}</span>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════════════════
+// FILTERS
+// ══════════════════════════════════════════════════════════════
+function setDF(f){ devFilter=f; ['all','online','offline'].forEach(x=>document.getElementById('df-'+x)?.classList.toggle('on',x===f)); renderDisc(); }
+
+// ── IP / text exact-prefix match ────────────────────────────
+// Prevents "10.10.32.3" from matching "10.10.32.30" etc.
+function ipMatch(text, query) {
+  if (!query) return true;
+  if (!text)  return false;
+  const t = text.toLowerCase();
+  const q = query.toLowerCase().trim();
+  // Check each token in the text (space-separated)
+  return t.split(/[\s,]+/).some(tok => {
+    // Exact match
+    if (tok === q) return true;
+    // IP prefix: query must be followed by . or : or end
+    if (tok.startsWith(q)) {
+      const next = tok[q.length];
+      return !next || next === '.' || next === ':';
+    }
+    return false;
+  });
+}
+
+// Match query against any field in a space-joined string
+// For non-IP fields (hostname, vendor etc.) use includes() as before
+function fieldMatch(text, query) {
+  if (!query) return true;
+  if (!text)  return false;
+  return text.toLowerCase().includes(query.toLowerCase().trim());
+}
+
+function filterDisc(){ renderDisc(); }
+function setFS(s){ flowSort=s; document.getElementById('fs-bytes')?.classList.toggle('on',s==='bytes'); document.getElementById('fs-time')?.classList.toggle('on',s==='time'); loadFlows(); }
+function filterFlows(){ renderFlows(); }
+function setPF(f){ pktFilter=f; ['all','tcp','udp','arp','dns'].forEach(x=>document.getElementById('pf-'+x)?.classList.toggle('on',x===f)); renderPkts(); }
+function setDnsType(t){ dnsType=t; ['all','query','resp'].forEach(x=>document.getElementById('dns-'+x)?.classList.toggle('on',x===t)); renderDns(); }
+function setAF(f){ alertFilter=f; ['all','network','security','traffic','unread'].forEach(x=>document.getElementById('af-'+x)?.classList.toggle('on',x===f)); renderAlerts(); }
+
+// ══════════════════════════════════════════════════════════════
+// EVENT LOG
+// ══════════════════════════════════════════════════════════════
+function addEvent(type,d,msg){
+  const el=document.getElementById('event-log');
+  el.querySelector('[data-empty]')?.remove();
+  const icons={joined:'📡',left:'🔴',scan:'🔍',alert:'🚨'};
+  const colors={joined:'var(--green)',left:'var(--red)',scan:'var(--cyan)',alert:'var(--amber)'};
+  const label=d?.ip||d?.src_ip||'';
+  const text=msg||d?.detail||d?.hostname||d?.vendor||'';
+  const div=document.createElement('div'); div.className='elog-row';
+  div.innerHTML=`<div class="ets">${new Date().toLocaleTimeString()}</div>`+
+    `<div class="etype" style="color:${colors[type]||'var(--ct)'};width:64px;flex-shrink:0">${icons[type]||'•'} ${type.toUpperCase()}</div>`+
+    `<div class="ebod">${label?`<span style="color:var(--cyan);margin-right:6px">${esc(label)}</span>`:''}${esc(text)}</div>`;
+  // Cap at 200 rows
+  const logEl=document.getElementById('event-log');
+  if(logEl.children.length>200) logEl.lastChild?.remove();
+  logEl.prepend(div);
+}
+function clearEvents(){ document.getElementById('event-log').innerHTML='<div style="font-size:11px;color:var(--cd);text-align:center;padding:16px" data-empty>Waiting for events...</div>'; }
+
+// ══════════════════════════════════════════════════════════════
+// ALERTS
+// ══════════════════════════════════════════════════════════════
+function dismissAlert(id){ fetch('/api/alerts/'+id+'/dismiss',{method:'POST'}); const el=document.getElementById('ai-'+id); if(el) el.classList.add('dismissed'); const a=allAlerts.find(x=>x.id===id); if(a) a.dismissed=true; updateAlertBadge(); }
+function dismissAll(){ fetch('/api/alerts/dismiss_all',{method:'POST'}); allAlerts.forEach(a=>a.dismissed=true); renderAlerts(); updateAlertBadge(); }
+async function clearAllAlerts(){ if(!confirm('Permanently delete all alerts?')) return; await fetch('/api/alerts/clear_all',{method:'POST'}); allAlerts=[]; renderAlerts(); updateAlertBadge(); }
+function toastAlert(a){ if(!currentSettings.toast_security) return; toast('alert-'+a.sev,{ip:a.src_ip||''},a.title||'Security Alert',(a.detail||'').slice(0,70)); }
+
+// ══════════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════════
+function toast(type,d,title,detail){
+  const icons={joined:'📡',left:'🔴','alert-warning':'⚠️','alert-high':'🔴','alert-critical':'🚨'};
+  const titles={joined:'Device Joined',left:'Device Left'};
+  if(type==='joined'&&!currentSettings.toast_new_device) return;
+  const el=document.getElementById('toasts');
+  const div=document.createElement('div'); div.className=`toast ${type}`;
+  div.innerHTML=`<div class="ti">${icons[type]||'🔔'}</div><div><div class="tt">${esc(title||titles[type]||type)}</div><div class="td2">${esc(detail||((d.label||d.hostname||d.ip||'')+(d.mac?' · '+d.mac:'')))}</div></div>`;
+  el.appendChild(div);
+  setTimeout(()=>{ div.classList.add('out'); setTimeout(()=>div.remove(),300); },5000);
+}
+
+// ══════════════════════════════════════════════════════════════
+// MODAL
+// ══════════════════════════════════════════════════════════════
+function quickLabel(e, mac, currentLabel){
+  e.stopPropagation();
+  const span = e.target;
+  const input = document.createElement('input');
+  input.type='text'; input.value=currentLabel;
+  input.style.cssText='background:var(--bg3);border:1px solid var(--c3);color:var(--ct);padding:2px 6px;border-radius:3px;font-size:11px;width:130px;outline:none;font-family:var(--mono)';
+  span.replaceWith(input);
+  input.focus(); input.select();
+  async function save(){
+    const label = input.value.trim();
+    await fetch(`/api/devices/${mac}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({label})});
+    await loadDevices();
+  }
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', e=>{ if(e.key==='Enter') input.blur(); if(e.key==='Escape'){input.value=currentLabel;input.blur();} });
+}
+
+function openModal(mac){ editMac=mac; const d=allDevices.find(x=>x.mac===mac); if(!d) return; document.getElementById('m-mac').value=mac; document.getElementById('m-label').value=d.label||''; document.getElementById('m-alert').checked=!!d.alert_on_join; document.getElementById('modal').classList.add('open'); }
+function closeModal(){ document.getElementById('modal').classList.remove('open'); editMac=null; }
+async function saveModal(){ if(!editMac) return; await fetch(`/api/devices/${editMac}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({label:document.getElementById('m-label').value,alert_on_join:document.getElementById('m-alert').checked})}); closeModal(); await loadDevices(); }
+document.getElementById('modal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
+
+// ══════════════════════════════════════════════════════════════
+// SCAN
+// ══════════════════════════════════════════════════════════════
+async function resolveHostnames(){
+  const btn = event.target;
+  btn.textContent = '⟳ Resolving...'; btn.disabled = true;
+  await fetch('/api/scan', {method:'POST'}); // scan triggers resolve
+  setTimeout(()=>{ btn.textContent='⟳ Resolve Names'; btn.disabled=false; loadDevices(); }, 8000);
+}
+
+function confirmReset(){
+  if(confirm('Reset all settings to defaults?')) resetSettings();
+}
+
+async function triggerScan(){ const b=document.getElementById('scan-btn'); b.textContent='SCANNING...'; b.classList.add('scanning'); b.disabled=true; await fetch('/api/scan',{method:'POST'}); setTimeout(()=>{b.textContent='⟳ SCAN';b.classList.remove('scanning');b.disabled=false;},8000); }
+
+// ══════════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════════
+async function getJ(url){
+  try{
+    const r=await fetch(url,{credentials:'same-origin'});
+    if(r.status===401){ handleUnauthorized(); return null; }
+    return await r.json();
+  }catch{return null;}
+}
+
+async function doLogout(){
+  if(!confirm('Sign out of NetWatch Pro?')) return;
+  await fetch('/auth/logout',{method:'POST',credentials:'same-origin'});
+  window.location.href='/login';
+}
+
+function handleUnauthorized(){
+  // Session expired — redirect to login
+  if(!document.getElementById('auth-expired-banner')){
+    const div=document.createElement('div');
+    div.id='auth-expired-banner';
+    div.style.cssText='position:fixed;top:0;left:0;right:0;background:#ff3b7a;color:#fff;text-align:center;padding:10px;font-size:13px;font-weight:600;z-index:9999;cursor:pointer';
+    div.textContent='Session expired — click here to sign in again';
+    div.onclick=()=>{ window.location.href='/login'; };
+    document.body.prepend(div);
+    setTimeout(()=>{ window.location.href='/login'; }, 3000);
+  }
+}
+async function getJTimeout(url, ms=8000){
+  try{
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(), ms);
+    const r=await fetch(url,{signal:controller.signal,credentials:'same-origin'});
+    clearTimeout(timer);
+    if(r.status===401){ handleUnauthorized(); return null; }
+    return await r.json();
+  }catch(e){
+    return null;
+  }
+}
+function set(id,v){ const e=document.getElementById(id); if(e) e.textContent=v; }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmtBps(b){ if(b>=1e9) return (b/1e9).toFixed(2)+' Gbps'; if(b>=1e6) return (b/1e6).toFixed(2)+' Mbps'; if(b>=1e3) return (b/1e3).toFixed(1)+' Kbps'; return Math.round(b)+' bps'; }
+function fmtBytes(b){ if(b>=1e9) return (b/1e9).toFixed(2)+' GB'; if(b>=1e6) return (b/1e6).toFixed(2)+' MB'; if(b>=1e3) return (b/1e3).toFixed(1)+' KB'; return (b||0)+' B'; }
+function fmtN(n){ if(n>=1e6) return (n/1e6).toFixed(1)+'M'; if(n>=1e3) return (n/1e3).toFixed(1)+'K'; return String(n||0); }
+function fmtT(ts){ if(!ts) return '—'; return new Date(ts*1000).toLocaleTimeString([],{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
+function fmtAge(ts){ if(!ts) return '—'; const d=(Date.now()/1000)-ts; if(d<60) return 'just now'; if(d<3600) return Math.floor(d/60)+'m ago'; if(d<86400) return Math.floor(d/3600)+'h ago'; return Math.floor(d/86400)+'d ago'; }
+
+
+// ══════════════════════════════════════════════════════════════
+// PI-HOLE
+// ══════════════════════════════════════════════════════════════
+let phChart = null, phChartMode = 'all', phLoading = false, phEnabled = true;
+let phCurrentUrl = '';
+
+function phInitChart() {
+  if (phChart) phChart.destroy();
+  const cOpts = {
+    animation: false,
+    plugins: { legend: { display: true, labels: { color: '#b8ccd8', font: { family: 'IBM Plex Mono', size: 9 }, boxWidth: 10 } } },
+    scales: {
+      x: { display: false },
+      y: { display: true, ticks: { color: '#445e72', font: { family: 'IBM Plex Mono', size: 9 } }, grid: { color: 'rgba(29,45,61,.5)' } }
+    }
+  };
+  phChart = new Chart(document.getElementById('ph-overtime-chart'), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [
+        { label: 'Queries', data: [], borderColor: '#00b4d8', borderWidth: 1.5, backgroundColor: 'rgba(0,180,216,.06)', fill: true, pointRadius: 0, tension: 0.3 },
+        { label: 'Blocked', data: [], borderColor: '#ff3b7a', borderWidth: 1.5, backgroundColor: 'rgba(255,59,122,.06)', fill: true, pointRadius: 0, tension: 0.3 },
+      ]
+    },
+    options: { ...cOpts, maintainAspectRatio: false }
+  });
+}
+
+async function phLoad() {
+  if (phLoading) return;
+  phLoading = true;
+  if (!phChart) phInitChart();
+
+  let data = null;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    const r = await fetch('/api/pihole/full', { signal: ctrl.signal });
+    clearTimeout(t);
+    data = await r.json();
+  } catch (e) {
+    phLoading = false;
+    phSetStatus(false, '', 'Request timed out or failed');
+    return;
+  }
+  phLoading = false;
+
+  const sum = data.summary || {};
+  phSetStatus(sum.available, sum.url, sum.error, sum.status, sum.last_updated_secs);
+
+  if (!sum.available) return;
+
+  // KPI
+  set('ph-total',   fmtN(sum.total_queries   || 0));
+  set('ph-blocked', fmtN(sum.queries_blocked  || 0));
+  set('ph-pct',     (sum.pct_blocked || 0).toFixed(1) + '%');
+  set('ph-domains', fmtN(sum.domains_blocked  || 0));
+  set('ph-clients', sum.unique_clients || 0);
+  set('ph-cached',  fmtN(sum.queries_cached   || 0));
+  set('ph-forwarded',     fmtN(sum.queries_forwarded || 0));
+  set('ph-cached2',       fmtN(sum.queries_cached    || 0));
+  set('ph-unique-domains',fmtN(sum.unique_domains    || 0));
+
+  // Ring
+  const pct = Math.min(100, sum.pct_blocked || 0);
+  const circ = 2 * Math.PI * 40;
+  const ring = document.getElementById('ph-ring');
+  if (ring) {
+    ring.style.strokeDashoffset = circ * (1 - pct / 100);
+    ring.setAttribute('stroke-dasharray', circ);
+    ring.setAttribute('stroke', pct > 30 ? '#00e5a0' : pct > 10 ? '#00b4d8' : '#ffd60a');
+  }
+  set('ph-pct-big', pct.toFixed(1) + '%');
+
+  // Timeline chart
+  const series = (data.overtime || {}).series || [];
+  if (phChart && series.length) {
+    phChart.data.labels = series.map(p => {
+      const d = new Date(p.ts * 1000);
+      return d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
+    });
+    phChart.data.datasets[0].data = series.map(p => p.queries);
+    phChart.data.datasets[1].data = series.map(p => p.blocked);
+    phChart.data.datasets[0].hidden = phChartMode === 'blocked';
+    phChart.update('none');
+  }
+
+  // Top lists
+  const top = data.top || {};
+  phRenderTopDict('ph-top-queries', top.top_queries || {}, '#00b4d8');
+  phRenderTopDict('ph-top-blocked', top.top_blocked || {}, '#ff3b7a');
+  phRenderTopClients('ph-top-clients', top.top_clients || []);
+
+  // Query types
+  const qt = data.query_types || [];
+  const qtEl = document.getElementById('ph-query-types');
+  if (qtEl) {
+    if (qt.length) {
+      const cols = ['#00b4d8','#7b61ff','#00e5a0','#ff9500','#ff3b7a','#ffd60a'];
+      qtEl.innerHTML = qt.map((t, i) =>
+        `<div class="pbar"><div class="pbh"><span class="pbn" style="color:${cols[i%cols.length]}">${esc(t.type)}</span><span class="pbp">${t.pct}% (${fmtN(t.count)})</span></div><div class="pbt"><div class="pbf" style="width:${t.pct}%;background:${cols[i%cols.length]}"></div></div></div>`
+      ).join('');
+    } else {
+      qtEl.innerHTML = '<div style="color:var(--cd);font-size:11px;text-align:center;padding:10px">Waiting for Pi-hole data...</div>';
+    }
+  }
+}
+
+function phSetStatus(available, url, error, status, lastSecs) {
+  const dot  = document.getElementById('ph-dot');
+  const txt  = document.getElementById('ph-status-text');
+  const err  = document.getElementById('ph-error-msg');
+  const ban  = document.getElementById('ph-offline-banner');
+  const urlEl= document.getElementById('ph-url-show');
+  const lastEl=document.getElementById('ph-last-update');
+  const btn  = document.getElementById('ph-toggle-btn');
+  const lnk  = document.getElementById('ph-open-link');
+  const lnk2 = document.getElementById('ph-open-link2');
+  const adm  = document.getElementById('ph-admin-url-display');
+
+  if (url) {
+    phCurrentUrl = url;
+    if (urlEl)  urlEl.textContent = url;
+    if (lnk)  { lnk.href  = url + '/admin'; }
+    if (lnk2) { lnk2.href = url + '/admin'; }
+    if (adm)    adm.textContent = url + '/admin';
+  }
+  if (lastSecs != null && lastEl) lastEl.textContent = lastSecs + 's ago';
+
+  if (available) {
+    if (err)  err.textContent  = '';
+    if (ban)  ban.style.display= 'none';
+    const enabled = (status === 'enabled');
+    phEnabled = enabled;
+    if (dot)  { dot.style.background = enabled ? '#00b4d8' : 'var(--c4)'; dot.style.boxShadow = enabled ? '0 0 6px #00b4d8' : ''; dot.style.animation = enabled ? 'blink-dot 2s ease-in-out infinite' : 'none'; }
+    if (txt)  { txt.textContent = enabled ? 'Pi-hole ACTIVE' : 'Pi-hole PAUSED'; txt.style.color = enabled ? '#00b4d8' : 'var(--c4)'; }
+    if (btn)  { btn.textContent = enabled ? '⏸ Disable' : '▶ Enable'; btn.style.borderColor = enabled ? 'var(--c5)' : 'var(--c3)'; btn.style.color = enabled ? 'var(--c5)' : 'var(--c3)'; }
+  } else {
+    if (dot)  { dot.style.background = 'var(--c5)'; dot.style.boxShadow = ''; }
+    if (txt)  { txt.textContent = 'Not reachable'; txt.style.color = 'var(--c5)'; }
+    if (err)    err.textContent = error || '';
+    if (ban)    ban.style.display = 'block';
+  }
+}
+
+function phRenderTopDict(elId, data, color) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const entries = Object.entries(data).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  if (!entries.length) {
+    el.innerHTML = '<div style="color:var(--cd);font-size:11px;text-align:center;padding:12px">No data yet — polling every 20s</div>';
+    return;
+  }
+  const mx = entries[0][1] || 1;
+  el.innerHTML = entries.map(([name, count], i) => `
+    <div class="trow" style="padding:4px 11px">
+      <div class="trank">${i + 1}</div>
+      <div style="font-family:var(--mono);font-size:11px;color:${color};flex:1;overflow:hidden;text-overflow:ellipsis" title="${esc(name)}">${esc(name.length > 35 ? name.slice(0, 35) + '…' : name)}</div>
+      <div class="tbar"><div class="tfill" style="width:${Math.round(count / mx * 100)}%;background:${color}"></div></div>
+      <div class="tval">${fmtN(count)}</div>
+    </div>`).join('');
+}
+
+function phRenderTopClients(elId, clients) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (!clients || !clients.length) {
+    el.innerHTML = '<div style="color:var(--cd);font-size:11px;text-align:center;padding:12px">No data</div>';
+    return;
+  }
+  const sorted = [...clients].sort((a, b) => b.count - a.count).slice(0, 10);
+  const mx = sorted[0]?.count || 1;
+  el.innerHTML = sorted.map((c, i) => {
+    const label = c.name || c.ip || '?';
+    const sub   = (c.name && c.ip && c.name !== c.ip) ? c.ip : '';
+    return `<div class="trow" style="padding:4px 11px">
+      <div class="trank">${i + 1}</div>
+      <div style="flex:1;overflow:hidden">
+        <div style="font-family:var(--mono);font-size:11px;color:#00b4d8;overflow:hidden;text-overflow:ellipsis">${esc(label)}</div>
+        ${sub ? `<div style="font-size:9px;color:var(--cd);font-family:var(--mono)">${esc(sub)}</div>` : ''}
+      </div>
+      <div class="tbar"><div class="tfill" style="width:${Math.round(c.count / mx * 100)}%;background:#00b4d8"></div></div>
+      <div class="tval">${fmtN(c.count)}</div>
+    </div>`;
+  }).join('');
+}
+
+function phSetChart(m) {
+  phChartMode = m;
+  document.getElementById('ph-chart-all')?.classList.toggle('on', m === 'all');
+  document.getElementById('ph-chart-blocked')?.classList.toggle('on', m === 'blocked');
+  if (phChart) {
+    phChart.data.datasets[0].hidden = (m === 'blocked');
+    phChart.update('none');
+  }
+}
+
+async function phToggle() {
+  const btn = document.getElementById('ph-toggle-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 6000);
+    const r = await fetch('/api/pihole/action/' + (phEnabled ? 'disable' : 'enable'),
+                          { method: 'POST', signal: ctrl.signal });
+    clearTimeout(t);
+    const d = await r.json();
+    if (d.ok) { phEnabled = !phEnabled; setTimeout(phLoad, 1000); }
+    else toast('alert-warning', {}, 'Pi-hole action failed', d.error || 'Check password');
+  } catch (e) {
+    toast('alert-warning', {}, 'Pi-hole timeout', 'Action timed out');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function phShowConfig() {
+  fetch('/api/settings')
+    .then(r => r.json())
+    .then(s => {
+      document.getElementById('ph-inp-url').value = s.pihole_url        || 'http://127.0.0.1:8888';
+      document.getElementById('ph-inp-pub').value = s.pihole_public_url || phCurrentUrl || 'http://10.10.32.12:8888';
+      document.getElementById('ph-inp-pw').value  = s.pihole_password   || s.pihole_token || '';
+    })
+    .catch(() => {
+      document.getElementById('ph-inp-url').value = 'http://127.0.0.1:8888';
+      document.getElementById('ph-inp-pub').value = phCurrentUrl || 'http://10.10.32.12:8888';
+      document.getElementById('ph-inp-pw').value  = '';
+    })
+    .finally(() => {
+      document.getElementById('ph-modal').classList.add('open');
+    });
+}
+
+function phCloseConfig() {
+  document.getElementById('ph-modal').classList.remove('open');
+}
+
+async function phSaveConfig() {
+  const url = document.getElementById('ph-inp-url').value.trim();
+  const pub = document.getElementById('ph-inp-pub').value.trim();
+  const pw  = document.getElementById('ph-inp-pw').value.trim();
+  if (!url) { toast('alert-warning', {}, 'URL required', 'Enter backend URL'); return; }
+  const r = await fetch('/api/pihole/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url, public_url: pub || url, password: pw, token: pw })
+  });
+  const d = await r.json();
+  phCloseConfig();
+  if (d.ok) {
+    phCurrentUrl = pub || url;
+    toast('joined', {}, 'Pi-hole configured', 'Connecting...');
+    setTimeout(phLoad, 1000);
+  } else {
+    toast('alert-warning', {}, 'Config failed', d.error || '');
+  }
+}
+
+// Close modal on backdrop click
+document.addEventListener('click', e => {
+  const modal = document.getElementById('ph-modal');
+  if (modal && e.target === modal) phCloseConfig();
+});
+
+
+// ══════════════════════════════════════════════════════════════
+// L2 / L4 HISTORY + ARCHIVE
+// ══════════════════════════════════════════════════════════════
+
+// ── Shared state ──────────────────────────────────────────────
+let protoMode = 'live', protoHistRange = '1d';
+let hdnsOffset = 0, htlsOffset = 0;
+let flowMode = 'live', flowHistRange = '1d';
+let hflowOffset = 0;
+const HIST_PAGE = 200;
+
+// ── L2 Protocol tab controls ──────────────────────────────────
+function protoTab(mode) {
+  protoMode = mode;
+  document.getElementById('proto-tab-live')?.classList.toggle('on', mode==='live');
+  document.getElementById('proto-tab-history')?.classList.toggle('on', mode==='history');
+  const lp = document.getElementById('proto-live-panel');
+  const hp = document.getElementById('proto-hist-panel');
+  const rng= document.getElementById('proto-hist-ranges');
+  if(lp)  lp.style.display  = mode==='live' ? '' : 'none';
+  if(hp)  hp.style.display  = mode==='history' ? 'flex' : 'none';
+  if(rng) rng.style.display = mode==='history' ? 'flex' : 'none';
+  if(mode==='history'){
+    hdnsOffset = 0; htlsOffset = 0;
+    histDnsLoad(); histTlsLoad(); loadArchiveIndex('proto');
+  }
+}
+
+function protoRange(r) {
+  protoHistRange = r;
+  ['1d','3d','1w','1m'].forEach(x=>{
+    document.getElementById('ph-r-'+x)?.classList.toggle('on', x===r);
+  });
+  hdnsOffset = 0; htlsOffset = 0;
+  histDnsLoad(); histTlsLoad();
+}
+
+// ── DNS history ────────────────────────────────────────────────
+function histDnsSearch(){ hdnsOffset=0; histDnsLoad(); }
+
+async function histDnsLoad(){
+  const ip = document.getElementById('hdns-ip')?.value.trim() || '';
+  const q  = document.getElementById('hdns-q')?.value.trim()  || '';
+  const params = new URLSearchParams({range:protoHistRange, limit:HIST_PAGE, offset:hdnsOffset});
+  if(ip) params.set('ip',ip);
+  if(q)  params.set('q',q);
+  const data = await getJ('/api/history/dns?'+params);
+  if(!data) return;
+  const tot = document.getElementById('hdns-total');
+  if(tot) tot.textContent = fmtN(data.total)+' rows';
+  const tb = document.getElementById('hdns-tbody');
+  if(tb) tb.innerHTML = data.rows.map(r=>`<tr>
+    <td class="mono dim">${fmtT(r.ts)}</td>
+    <td class="mono" style="color:var(--c1)">${esc(r.src_ip)}</td>
+    <td class="mono" style="color:var(--c2)">${esc(r.query)}</td>
+    <td><span class="chip c2" style="font-size:9px">${esc(r.qtype||'A')}</span></td>
+    <td class="dim" style="font-size:10px">${esc(r.answer||'—')}</td>
+  </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--cd);padding:12px">No data for this period</td></tr>';
+  renderHistPage('hdns-page', data, hdnsOffset, HIST_PAGE, d=>{ hdnsOffset=d; histDnsLoad(); });
+}
+
+// ── TLS history ────────────────────────────────────────────────
+function histTlsSearch(){ htlsOffset=0; histTlsLoad(); }
+
+async function histTlsLoad(){
+  const ip  = document.getElementById('htls-ip')?.value.trim()  || '';
+  const sni = document.getElementById('htls-sni')?.value.trim() || '';
+  const params = new URLSearchParams({range:protoHistRange, limit:HIST_PAGE, offset:htlsOffset});
+  if(ip)  params.set('ip',ip);
+  if(sni) params.set('sni',sni);
+  const data = await getJ('/api/history/tls?'+params);
+  if(!data) return;
+  const tot = document.getElementById('htls-total');
+  if(tot) tot.textContent = fmtN(data.total)+' rows';
+  const tb = document.getElementById('htls-tbody');
+  if(tb) tb.innerHTML = data.rows.map(r=>`<tr>
+    <td class="mono dim">${fmtT(r.ts)}</td>
+    <td class="mono" style="color:var(--c1)">${esc(r.src_ip)}</td>
+    <td class="mono dim">${esc(r.dst_ip||'—')}</td>
+    <td class="mono" style="color:var(--c2)">${esc(r.sni||'—')}</td>
+    <td class="mono dim" style="font-size:9px">${r.ja3?esc(r.ja3.slice(0,12))+'…':'—'}</td>
+    <td class="mono dim">${r.port||443}</td>
+  </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--cd);padding:12px">No data for this period</td></tr>';
+  renderHistPage('htls-page', data, htlsOffset, HIST_PAGE, d=>{ htlsOffset=d; histTlsLoad(); });
+}
+
+// ── L4 Flow tab controls ────────────────────────────────────────
+function flowTab(mode) {
+  flowMode = mode;
+  document.getElementById('flow-tab-live')?.classList.toggle('on', mode==='live');
+  document.getElementById('flow-tab-history')?.classList.toggle('on', mode==='history');
+  const lp  = document.getElementById('flow-live-panel');
+  const hp  = document.getElementById('flow-hist-panel');
+  const rng = document.getElementById('flow-hist-ranges');
+  if(lp)  lp.style.display  = mode==='live' ? '' : 'none';
+  if(hp)  hp.style.display  = mode==='history' ? 'flex' : 'none';
+  if(rng) rng.style.display = mode==='history' ? 'flex' : 'none';
+  if(mode==='history'){
+    hflowOffset = 0; histFlowLoad(); loadArchiveIndex('flow');
+  }
+}
+
+function flowRange(r) {
+  flowHistRange = r;
+  ['1d','3d','1w','1m'].forEach(x=>{
+    document.getElementById('fh-r-'+x)?.classList.toggle('on', x===r);
+  });
+  hflowOffset = 0; histFlowLoad();
+}
+
+// ── Flow history ────────────────────────────────────────────────
+function histFlowSearch(){ hflowOffset=0; histFlowLoad(); }
+
+async function histFlowLoad(){
+  const ip    = document.getElementById('hflow-ip')?.value.trim()    || '';
+  const port  = document.getElementById('hflow-port')?.value.trim()  || '';
+  const proto = document.getElementById('hflow-proto')?.value        || '';
+  const hideSelf = document.getElementById('hflow-hide-self')?.checked;
+  const params = new URLSearchParams({range:flowHistRange, limit:HIST_PAGE, offset:hflowOffset});
+  if(ip)    params.set('ip',ip);
+  if(port)  params.set('port',port);
+  if(proto) params.set('proto',proto);
+  const data = await getJ('/api/history/flows?'+params);
+  if(!data) return;
+  const tot = document.getElementById('hflow-total');
+  if(tot) tot.textContent = fmtN(data.total)+' rows';
+  const tb = document.getElementById('hflow-tbody');
+  let rows = data.rows;
+  if(hideSelf) rows = rows.filter(r=>Number(r.dst_port)!==5000 && Number(r.src_port)!==5000);
+  if(tb) tb.innerHTML = rows.map(r=>`<tr>
+    <td class="mono dim">${fmtT(r.ts)}</td>
+    <td class="mono" style="color:var(--c1)">${esc(r.src_ip)}:${r.src_port}</td>
+    <td class="mono" style="color:var(--c4)">${esc(r.dst_ip)}:${r.dst_port}</td>
+    <td><span class="chip" style="font-size:9px;${r.proto==='TCP'?'border-color:var(--c1);color:var(--c1)':r.proto==='UDP'?'border-color:var(--c2);color:var(--c2)':''}">${esc(r.proto)}</span></td>
+    <td class="mono">${fmtBytes(r.bytes)}</td>
+    <td class="mono dim">${fmtN(r.pkts)}</td>
+    <td class="mono dim">${r.rtt_ms?r.rtt_ms.toFixed(1)+'ms':'—'}</td>
+    <td class="mono dim">${r.duration?r.duration.toFixed(1)+'s':'—'}</td>
+    <td class="dim">${esc(r.state||'')}</td>
+  </tr>`).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--cd);padding:12px">No data for this period</td></tr>';
+  renderHistPage('hflow-page', data, hflowOffset, HIST_PAGE, d=>{ hflowOffset=d; histFlowLoad(); });
+}
+
+// ── Archive browser ────────────────────────────────────────────
+async function loadArchiveIndex(panel){
+  const elId = panel==='proto' ? 'proto-archive' : 'flow-archive';
+  const el = document.getElementById(elId);
+  if(!el) return;
+  const data = await getJ('/api/archive');
+  if(!data || !data.length){
+    el.innerHTML = '<div style="color:var(--cd);padding:8px">No archived data yet. Data older than 30 days is automatically archived here as monthly CSV files.</div>';
+    return;
+  }
+  const tables = panel==='proto'
+    ? ['dns_log','tls_log','http_log']
+    : ['flow_log'];
+
+  el.innerHTML = data.map(month=>{
+    const relevant = month.files.filter(f=>tables.some(t=>f.name.includes(t)));
+    if(!relevant.length) return '';
+    return `<div style="margin-bottom:12px">
+      <div style="color:var(--c3);font-weight:500;margin-bottom:5px;font-family:var(--mono)">${esc(month.month)}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${relevant.map(f=>`
+          <a href="${esc(f.url)}" download
+            style="display:flex;align-items:center;gap:6px;padding:5px 10px;background:rgba(0,229,160,.08);border:1px solid rgba(0,229,160,.2);border-radius:4px;text-decoration:none;color:var(--ct);font-size:11px;font-family:var(--mono)">
+            <span style="color:var(--c3)">⬇</span>
+            ${esc(f.name.replace('_log.csv',''))}
+            <span style="color:var(--cd)">${fmtN(f.rows)} rows · ${fmtBytes(f.size)}</span>
+          </a>`).join('')}
+      </div>
+    </div>`;
+  }).join('') || '<div style="color:var(--cd)">No archived files for this section yet.</div>';
+}
+
+// ── Shared pagination renderer ──────────────────────────────────
+function renderHistPage(elId, data, offset, pageSize, goFn){
+  const el = document.getElementById(elId);
+  if(!el) return;
+  const totalPages = Math.max(1, Math.ceil(data.total / pageSize));
+  const curPage    = Math.floor(offset / pageSize) + 1;
+  el.innerHTML = `
+    <button class="chip" onclick="(${goFn.toString()})(${offset-pageSize})" ${offset===0?'disabled':''}>◀ Prev</button>
+    <span style="flex:1;text-align:center">Page ${curPage} / ${totalPages} · ${fmtN(data.total)} total</span>
+    <button class="chip" onclick="(${goFn.toString()})(${offset+pageSize})" ${!data.has_more?'disabled':''}>Next ▶</button>
+  `;
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// DEVICE CSV IMPORT
+// ══════════════════════════════════════════════════════════════
+let importFile = null;
+
+function showImportModal() {
+  importFile = null;
+  document.getElementById('import-filename').textContent  = 'netwatch_devices.csv';
+  document.getElementById('import-preview').style.display = 'none';
+  document.getElementById('import-result').style.display  = 'none';
+  document.getElementById('import-btn').disabled          = true;
+  document.getElementById('import-modal').classList.add('open');
+}
+
+function closeImportModal() {
+  document.getElementById('import-modal').classList.remove('open');
+  importFile = null;
+}
+
+function handleImportDrop(e) {
+  e.preventDefault();
+  document.getElementById('import-drop-zone').style.borderColor = 'var(--border2)';
+  const f = e.dataTransfer.files[0];
+  if (f) handleImportFile(f);
+}
+
+function handleImportFile(f) {
+  if (!f) return;
+  if (!f.name.toLowerCase().endsWith('.csv')) {
+    showImportResult(false, 'File must be a .csv');
+    return;
+  }
+  importFile = f;
+  document.getElementById('import-filename').textContent = f.name + ' (' + fmtBytes(f.size) + ')';
+  document.getElementById('import-btn').disabled = false;
+
+  // Parse and preview
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines  = e.target.result.split('\n').filter(l => l.trim());
+    const header = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g,''));
+    const preview= lines.slice(1, 6);
+    const colIdxs = {
+      mac:  header.findIndex(h => h.toLowerCase() === 'mac'),
+      ip:   header.findIndex(h => h.toLowerCase() === 'ip'),
+      label:header.findIndex(h => h.toLowerCase() === 'label'),
+      host: header.findIndex(h => ['hostname','hostname / label','hostname/label'].includes(h.toLowerCase())),
+      type: header.findIndex(h => h.toLowerCase().includes('device_type')),
+    };
+
+    const el = document.getElementById('import-preview-table');
+    el.innerHTML = `<table class="dt" style="font-size:10px"><thead><tr>
+      <th>MAC</th><th>IP</th><th>Label</th><th>Hostname</th><th>Device Type</th>
+    </tr></thead><tbody>${preview.map(row => {
+      const cols = row.split(',').map(c => c.trim().replace(/^"|"$/g,''));
+      return '<tr>' + ['mac','ip','label','host','type'].map(k => {
+        const v = colIdxs[k] >= 0 ? (cols[colIdxs[k]] || '') : '—';
+        return '<td class="mono" style="max-width:140px;overflow:hidden;text-overflow:ellipsis">' + esc(v) + '</td>';
+      }).join('') + '</tr>';
+    }).join('')}</tbody></table>`;
+
+    document.getElementById('import-preview').style.display = 'block';
+  };
+  reader.readAsText(f);
+}
+
+async function doImport() {
+  if (!importFile) return;
+  const btn = document.getElementById('import-btn');
+  btn.disabled = true; btn.textContent = 'Importing...';
+  document.getElementById('import-result').style.display = 'none';
+
+  try {
+    const fd = new FormData();
+    fd.append('file', importFile);
+    const r = await fetch('/api/import/devices', {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: fd,   // no Content-Type header — browser sets multipart boundary
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showImportResult(true,
+        `✓ ${d.message}` +
+        (d.not_found?.length ? `\n⚠ Not matched (${d.not_found.length}): ${d.not_found.slice(0,5).join(', ')}` : '')
+      );
+      setTimeout(() => { loadDevices(); closeImportModal(); }, 1500);
+    } else {
+      showImportResult(false, '✗ ' + (d.error || 'Import failed'));
+    }
+  } catch (e) {
+    showImportResult(false, '✗ Network error: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Import';
+  }
+}
+
+function showImportResult(ok, msg) {
+  const el = document.getElementById('import-result');
+  el.style.display    = 'block';
+  el.style.background = ok ? 'rgba(0,229,160,.1)'  : 'rgba(255,59,122,.1)';
+  el.style.border     = ok ? '1px solid rgba(0,229,160,.3)' : '1px solid rgba(255,59,122,.3)';
+  el.style.color      = ok ? 'var(--c3)' : 'var(--c5)';
+  el.style.whiteSpace = 'pre-line';
+  el.textContent      = msg;
+}
+
+// Close on backdrop click
+document.addEventListener('click', e => {
+  const m = document.getElementById('import-modal');
+  if (m && e.target === m) closeImportModal();
+});
+
+// ═══════ INSIGHTS ════════════════════════════════════════════
+function updateInsights(){
+  const devEl=document.getElementById('dash-device-summary');
+  if(devEl&&allDevices.length){
+    const online=allDevices.filter(d=>d.is_online).length;
+    const offline=allDevices.filter(d=>!d.is_online).length;
+    const types={};
+    allDevices.forEach(d=>{const t=d.device_type||'Unknown';types[t]=(types[t]||0)+1;});
+    const topType=Object.entries(types).sort((a,b)=>b[1]-a[1])[0];
+    devEl.innerHTML=
+      `<span style="color:var(--c3)">● ${online} online</span>  <span style="color:var(--c5)">○ ${offline} offline</span><br>`+
+      `Total: <span style="color:var(--cb)">${allDevices.length} devices</span><br>`+
+      (topType?`Most: <span style="color:var(--c4)">${esc(topType[0])} ×${topType[1]}</span>`:'');
+  }
+  const secEl=document.getElementById('dash-security-status');
+  if(secEl){
+    const crit=allAlerts.filter(a=>a.sev==='critical'&&!a.dismissed).length;
+    const high=allAlerts.filter(a=>a.sev==='high'&&!a.dismissed).length;
+    const warn=allAlerts.filter(a=>a.sev==='warning'&&!a.dismissed).length;
+    const status=crit>0?'CRITICAL':high>0?'HIGH':warn>0?'WARNING':'CLEAN';
+    const sc=crit>0?'var(--c5)':high>0?'var(--c4)':warn>0?'var(--c6)':'var(--c3)';
+    secEl.innerHTML=
+      `<span style="color:${sc};font-size:14px;font-weight:600;font-family:var(--mono)">${status}</span><br>`+
+      `<span style="color:var(--c5)">🚨 ${crit} critical</span>  <span style="color:var(--c4)">🔴 ${high} high</span><br>`+
+      `<span style="color:var(--c6)">⚠ ${warn} warnings</span>`;
+  }
+  // ns-in/out handled by live_stats socket event
+  // Top talker insight replaced by Network Speed card
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// EVENT LOG — LIVE + HISTORY
+// ══════════════════════════════════════════════════════════════
+let elogMode = 'live', elogOffset = 0, elogPageSize = 50;
+
+function elogTab(mode) {
+  elogMode = mode;
+  document.getElementById('elog-tab-live')?.classList.toggle('on', mode === 'live');
+  document.getElementById('elog-tab-history')?.classList.toggle('on', mode === 'history');
+  document.getElementById('elog-live-panel').style.display    = mode === 'live'    ? '' : 'none';
+  document.getElementById('elog-history-panel').style.display = mode === 'history' ? 'flex' : 'none';
+  if (mode === 'history') { elogOffset = 0; elogLoadHistory(); }
+}
+
+function elogSearch() {
+  elogOffset = 0;
+  elogLoadHistory();
+}
+
+async function elogLoadHistory() {
+  const q      = document.getElementById('elog-search')?.value.trim()   || '';
+  const evType = document.getElementById('elog-type-filter')?.value      || '';
+  const params = new URLSearchParams({
+    limit:  elogPageSize,
+    offset: elogOffset,
+  });
+  if (q)      params.set('q', q);
+  if (evType) params.set('type', evType);
+
+  const data = await getJ('/api/events/history?' + params);
+  if (!data) return;
+
+  const rowsEl = document.getElementById('elog-history-rows');
+  const totalEl = document.getElementById('elog-total');
+  const pageEl  = document.getElementById('elog-pagination');
+
+  if (totalEl) totalEl.textContent = fmtN(data.total) + ' events';
+
+  const typeColors = {
+    joined:   'var(--c3)', left: 'var(--c5)', scan: 'var(--c1)',
+    alert:    'var(--c5)', dns: 'var(--c2)',  pihole: '#00b4d8',
+    suricata: 'var(--c4)', auth: 'var(--cd)', system: 'var(--cd)',
+  };
+  const icons = {
+    joined:'📡', left:'🔴', scan:'🔍', alert:'🚨',
+    dns:'🌐', pihole:'🔵', suricata:'⚡', auth:'🔒', system:'ℹ',
+  };
+
+  if (rowsEl) {
+    if (!data.events.length) {
+      rowsEl.innerHTML = '<div style="color:var(--cd);text-align:center;padding:20px;font-size:11px">No events match your filter</div>';
+    } else {
+      rowsEl.innerHTML = data.events.map(e => {
+        const color = typeColors[e.ev_type] || 'var(--cd)';
+        const icon  = icons[e.ev_type] || '•';
+        const t     = fmtT(e.ts);
+        const ip    = e.ip ? `<span style="font-family:var(--mono);color:var(--c1);margin-left:6px">${esc(e.ip)}</span>` : '';
+        return `<div class="elog-row" style="cursor:default">
+          <div class="ets">${t}</div>
+          <div style="font-size:10px;font-family:var(--mono);color:${color};width:50px;flex-shrink:0">${icon} ${esc(e.ev_type)}</div>
+          <div style="font-size:11px;color:var(--ct);flex:1;overflow:hidden;text-overflow:ellipsis">
+            ${esc(e.message)}${ip}
+            ${e.detail ? `<div style="font-size:10px;color:var(--cd);margin-top:1px;overflow:hidden;text-overflow:ellipsis">${esc(e.detail.slice(0,100))}</div>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  // Pagination
+  if (pageEl) {
+    const totalPages = Math.ceil(data.total / elogPageSize);
+    const curPage    = Math.floor(elogOffset / elogPageSize) + 1;
+    pageEl.innerHTML = `
+      <button class="chip" onclick="elogPage(-1)" ${elogOffset===0?'disabled':''}>◀ Prev</button>
+      <span style="flex:1;text-align:center">Page ${curPage} of ${totalPages} · ${fmtN(data.total)} total events</span>
+      <button class="chip" onclick="elogPage(1)" ${!data.has_more?'disabled':''}>Next ▶</button>
+    `;
+  }
+}
+
+function elogPage(dir) {
+  elogOffset = Math.max(0, elogOffset + dir * elogPageSize);
+  elogLoadHistory();
+}
+
+// Refresh history if it's visible
+setInterval(() => {
+  if (elogMode === 'history' && isTab('dashboard')) elogLoadHistory();
+}, 30000);
+
+
+
+// ══════════════════════════════════════════════════════════════
+// GLOBAL IP / MAC FILTER — syncs across all tabs
+// ══════════════════════════════════════════════════════════════
+
+// Map: tab-specific filter input IDs that should receive the global value
+const GLOBAL_FILTER_TARGETS = {
+  // tab id → list of {inputId, reload}
+  capture:   [],  // packet stream filters by src/dst inline
+  protocol:  [{id:'dns-ip', reload:()=>renderDns()}, {id:'hdns-ip',reload:()=>histDnsLoad()}, {id:'htls-ip',reload:()=>histTlsLoad()}],
+  discovery: [{id:'dev-search', reload:()=>filterDisc()}],
+  flows:     [{id:'flow-search', reload:()=>filterFlows()}, {id:'hflow-ip', reload:()=>histFlowLoad()}],
+  alerts:    [],   // renderAlerts reads global-filter directly
+  suricata:  [{id:'sur-ip-filter', reload:()=>renderSurAlerts()}],
+  pihole:    [],   // Pi-hole filters are server-side, handled in ph loaders
+};
+
+function globalFilterChange(){
+  const val = document.getElementById('global-filter')?.value || '';
+  const clearBtn = document.getElementById('global-filter-clear');
+  if(clearBtn) clearBtn.style.display = val ? 'block' : 'none';
+
+  // Push value to all visible tab filter inputs
+  const activeTab = document.querySelector('.ltab.active')?.dataset?.t || '';
+
+  // Always push to all inputs regardless of active tab
+  for(const [tab, targets] of Object.entries(GLOBAL_FILTER_TARGETS)){
+    for(const t of targets){
+      const el = document.getElementById(t.id);
+      if(el && el.value !== val){
+        el.value = val;
+      }
+    }
+  }
+
+  // Re-render the active tab
+  const reloadMap = {
+    discovery: ()=>{ filterDisc(); },
+    flows:     ()=>{ renderFlows();
+                     if(document.getElementById('fh-r-1d')?.classList.contains('on')||
+                        document.getElementById('flow-tab-history')?.classList.contains('on')) histFlowLoad(); },
+    protocol:  ()=>{ renderDns();
+                     if(document.getElementById('ph-r-1d')?.classList.contains('on')||
+                        document.getElementById('proto-tab-history')?.classList.contains('on')){ histDnsLoad(); histTlsLoad(); } },
+    alerts:    ()=>{ renderAlerts(); },
+    suricata:  ()=>{ renderSurAlerts(); },
+    capture:   ()=>{ renderPkts(); },
+    pihole:    ()=>{ /* Pi-hole has server-side filtering */ },
+  };
+  reloadMap[activeTab]?.();
+}
+
+function clearGlobalFilter(){
+  const el = document.getElementById('global-filter');
+  if(el){ el.value = ''; }
+  globalFilterChange();
+  el?.focus();
+}
+
+// When user types in any individual tab filter, sync back to global
+function syncToGlobal(val){
+  const gf = document.getElementById('global-filter');
+  if(gf && val && !gf.value){
+    gf.value = val;
+    const clearBtn = document.getElementById('global-filter-clear');
+    if(clearBtn) clearBtn.style.display = val ? 'block' : 'none';
+  }
+}
+
+// Global filter sync is handled inline in the tab() function below
+
+// renderPkts global filter handled inline
+
+
+
+// ══════════════════════════════════════════════════════════════
+// HEALTH SCORE
+// ══════════════════════════════════════════════════════════════
+async function loadHealth(){
+  const d = await getJ('/api/health');
+  if(!d) return;
+  const CIRC = 2 * Math.PI * 18; // r=18 → circumference ≈ 113.1
+  const color = d.score >= 90 ? 'var(--green)' : d.score >= 70 ? 'var(--amber)' : 'var(--red)';
+  const offset = CIRC * (1 - d.score / 100);
+
+  const ring  = document.getElementById('d-health-ring');
+  const score = document.getElementById('d-health-score');
+  const grade = document.getElementById('d-health-grade');
+  const label = document.getElementById('d-health-label');
+
+  if(ring)  { ring.style.strokeDashoffset = offset; ring.setAttribute('stroke', color); }
+  if(score) { score.textContent = d.score + '%'; score.style.color = color; }
+  if(grade) { grade.textContent = d.grade;        grade.style.color = color; }
+  if(label) { label.textContent = d.issues?.length ? d.issues[0] : 'All systems normal'; }
+  // Update incident count in dashboard
+  const incStats = await getJ('/api/incidents/stats');
+  if(incStats){
+    const incEl = document.getElementById('d-incidents');
+    if(incEl) incEl.textContent = incStats.active || 0;
+  }
+}
+setInterval(loadHealth, 30000);
+
+// ══════════════════════════════════════════════════════════════
+// INCIDENTS
+// ══════════════════════════════════════════════════════════════
+async function loadIncidents(){
+  const data = await getJ('/api/incidents?active=1');
+  if(!data) return;
+  const el    = document.getElementById('incident-list');
+  const empty = document.getElementById('inc-empty');
+  const count = document.getElementById('inc-count');
+  if(count) count.textContent = data.length + ' incident' + (data.length===1?'':'s');
+  const active = data.filter(i => !i.dismissed);
+  if(!active.length){
+    if(empty) empty.style.display = 'block';
+    if(el) el.innerHTML = '<div style="color:var(--cd);font-size:11px;text-align:center;padding:12px">No active incidents ✓</div>';
+    return;
+  }
+  if(empty) empty.style.display = 'none';
+  const sevColor = {critical:'var(--red)',high:'var(--amber)',warning:'#ff8800',info:'var(--cyan)'};
+  const sevIcon  = {critical:'🚨',high:'🔴',warning:'⚠️',info:'ℹ️'};
+  if(el) el.innerHTML = active.map(inc => {
+    const dur   = formatDuration(inc.duration_s || 0);
+    const color = sevColor[inc.severity] || 'var(--ct)';
+    return `<div style="display:flex;align-items:flex-start;gap:10px;padding:7px 8px;border-bottom:1px solid rgba(0,240,255,.05);border-left:3px solid ${color};padding-left:10px;margin-bottom:4px;border-radius:3px;background:rgba(0,0,0,.2)">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+          <span style="color:${color};font-size:11px">${sevIcon[inc.severity]||'•'}</span>
+          <span style="font-weight:600;font-size:11px;color:var(--cb)">${esc(inc.title)}</span>
+          <span style="font-family:var(--mono);font-size:9px;background:rgba(255,40,85,.12);color:var(--c5);padding:1px 6px;border-radius:2px">×${inc.count}</span>
+        </div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--cyan)">${esc(inc.device_ip)}</div>
+        <div style="font-size:10px;color:var(--cd);margin-top:2px">${dur} · ${esc(inc.detail?.slice(0,60)||'')}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+        ${inc.device_ip ? `<button onclick="showBlockDialog('${esc(inc.device_ip)}')" style="padding:2px 8px;border:1px solid rgba(255,40,85,.4);color:var(--c5);background:rgba(255,40,85,.08);border-radius:2px;cursor:pointer;font-size:9px;font-family:var(--mono)">🚫 BLOCK</button>` : ''}
+        <button onclick="dismissIncident('${esc(inc.id)}')" style="padding:2px 8px;border:1px solid var(--border);color:var(--cd);background:transparent;border-radius:2px;cursor:pointer;font-size:9px;font-family:var(--mono)">✓ RESOLVE</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function formatDuration(secs){
+  if(secs < 60)   return secs + 's';
+  if(secs < 3600) return Math.floor(secs/60) + 'm';
+  return Math.floor(secs/3600) + 'h ' + Math.floor((secs%3600)/60) + 'm';
+}
+
+async function dismissIncident(id){
+  await fetch('/api/incidents/'+id+'/dismiss',{method:'POST',credentials:'same-origin'});
+  loadIncidents();
+}
+
+async function dismissAllIncidents(){
+  await fetch('/api/incidents/dismiss_all',{method:'POST',credentials:'same-origin'});
+  loadIncidents();
+}
+
+setInterval(loadIncidents, 15000);
+
+// ══════════════════════════════════════════════════════════════
+// GEOIP
+// ══════════════════════════════════════════════════════════════
+const geoCache = {};
+
+async function loadGeoTip(ip, elId){
+  if(geoCache[ip] !== undefined){
+    const el = document.getElementById(elId);
+    if(el && geoCache[ip]) el.textContent = geoCache[ip];
+    return;
+  }
+  geoCache[ip] = null; // mark as pending
+  try{
+    const r = await fetch('/api/geoip/'+ip, {credentials:'same-origin'});
+    const d = await r.json();
+    if(d.ok && d.data){
+      const label = d.data.flag + ' ' + (d.data.label || d.data.country || '');
+      geoCache[ip] = label;
+      const el = document.getElementById(elId);
+      if(el) el.textContent = label;
+      // Also update alert geo spans
+      const alertGeoEl = document.getElementById('geo-'+ip.replace(/\./g,'-'));
+      if(alertGeoEl) alertGeoEl.textContent = label;
+    } else if(d.pending){
+      // Retry after 3 seconds
+      setTimeout(()=>{ delete geoCache[ip]; loadGeoTip(ip, elId); }, 3000);
+    }
+  }catch(e){}
+}
+
+// ══════════════════════════════════════════════════════════════
+// BLOCK IP
+// ══════════════════════════════════════════════════════════════
+let _blockIp = '';
+
+async function showBlockDialog(ip){
+  _blockIp = ip;
+  document.getElementById('block-ip-display').textContent = ip;
+  document.getElementById('block-note').value = '';
+  document.getElementById('block-cmds').style.display = 'none';
+  document.getElementById('block-btn').textContent = 'Block IP';
+  document.getElementById('block-btn').disabled = false;
+  // Load geo info
+  const geoEl = document.getElementById('block-geo-display');
+  if(geoEl){
+    geoEl.textContent = 'Looking up location...';
+    const r = await fetch('/api/geoip/'+ip, {credentials:'same-origin'});
+    const d = await r.json();
+    if(d.ok && d.data) geoEl.textContent = d.data.flag+' '+d.data.label+' | '+d.data.org;
+    else geoEl.textContent = '';
+  }
+  document.getElementById('block-modal').classList.add('open');
+}
+
+function closeBlockModal(){
+  document.getElementById('block-modal').classList.remove('open');
+}
+
+async function doBlock(){
+  const btn    = document.getElementById('block-btn');
+  const action = document.getElementById('block-action').value;
+  const note   = document.getElementById('block-note').value.trim();
+  btn.disabled = true; btn.textContent = 'Blocking...';
+
+  const r = await fetch('/api/action/block_ip',{
+    method:'POST', credentials:'same-origin',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ip:_blockIp, action, note})
+  });
+  const d = await r.json();
+
+  if(d.commands){
+    const cmds = d.commands;
+    document.getElementById('block-cmds-content').innerHTML =
+      `<div>DROP:  <span style="color:var(--green)">${esc(cmds.iptables_drop)}</span></div>` +
+      `<div>UNDO:  <span style="color:var(--amber)">${esc(cmds.iptables_undo)}</span></div>` +
+      `<div>NFT:   <span style="color:var(--cyan)">${esc(cmds.nftables_drop)}</span></div>`;
+    document.getElementById('block-cmds').style.display = 'block';
+  }
+
+  const ph = d.pihole || {};
+  if(ph.ok){
+    toast('alert',{},'IP Blocked',_blockIp+' added to Pi-hole blocklist');
+  } else {
+    toast('alert',{},'Pi-hole block failed — use iptables commands above','');
+  }
+
+  btn.textContent = '✓ Done';
+  setTimeout(closeBlockModal, 2000);
+}
+
+document.addEventListener('click', e=>{
+  const m = document.getElementById('block-modal');
+  if(m && e.target===m) closeBlockModal();
+});
+
+
+
+// ══════════════════════════════════════════════════════════════
+// MOBILE NAVIGATION
+// ══════════════════════════════════════════════════════════════
+let mobileNavOpen = false;
+
+function toggleMobileNav() {
+  if (mobileNavOpen) {
+    closeMobileNav();
+  } else {
+    openMobileNav();
+  }
+}
+
+function openMobileNav() {
+  mobileNavOpen = true;
+  const nav = document.getElementById('mobile-nav');
+  const bd  = document.getElementById('mobile-nav-backdrop');
+  const btn = document.getElementById('hamburger');
+  if (nav) nav.classList.add('open');
+  if (bd)  bd.classList.add('open');
+  if (btn) btn.textContent = '✕';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeMobileNav(noToggle) {
+  mobileNavOpen = false;
+  const nav = document.getElementById('mobile-nav');
+  const bd  = document.getElementById('mobile-nav-backdrop');
+  const btn = document.getElementById('hamburger');
+  if (nav) nav.classList.remove('open');
+  if (bd)  bd.classList.remove('open');
+  if (btn) btn.textContent = '☰';
+  document.body.style.overflow = '';
+}
+
+function mobileTab(name) {
+  closeMobileNav();
+
+  // Update mobile tab active state
+  document.querySelectorAll('.mobile-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.t === name);
+  });
+
+  // Delegate to the main tab() function
+  tab(name);
+}
+
+// Keep mobile drawer badge in sync with desktop badge
+function updateAlertBadge() {
+  const cnt = allAlerts.filter(a => !a.dismissed).length;
+  ['alert-badge', 'm-alert-badge'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = cnt > 0 ? '' : 'none';
+    el.textContent = cnt;
+  });
+}
+
+// Close mobile nav when tapping outside
+document.addEventListener('click', e => {
+  if (!mobileNavOpen) return;
+  const nav = document.getElementById('mobile-nav');
+  const btn = document.getElementById('hamburger');
+  if (nav && !nav.contains(e.target) && btn && !btn.contains(e.target)) {
+    toggleMobileNav();
+  }
+}, { passive: true });
+
+// mobileTab() already calls tab() — no patching needed.
+
+// Sync mobile filter with global
+document.addEventListener('input', e => {
+  if (e.target.id === 'global-filter') {
+    const mf = document.querySelector('#mobile-filter input');
+    if (mf && mf !== e.target) mf.value = e.target.value;
+  }
+}, { passive: true });
+
+
+// Notification permission requested only when user enables in Settings
+clearEvents();
+Promise.all([loadStats(),loadDevices(),loadFlows(),loadPD(),loadTalkers(),loadBW(),loadAlerts(),loadSettings()]);
+
+setInterval(loadBW,      1000);
+setInterval(loadPD,      5000);
+setInterval(loadTalkers, 5000);
+setInterval(loadFlows,  10000);
+setInterval(loadStats,  15000);
+setInterval(loadDevices,30000);
+setInterval(loadAlerts, 10000);
+setInterval(updateInsights, 10000);
+setInterval(()=>{ if(isTab('protocol')) loadDPI(); }, 3000);
+setInterval(()=>{ if(isTab('suricata')){ loadSuricata(); loadSurSeries(); loadSurSources(); } }, 5000);
+setInterval(()=>{ if(isTab('suricata')){ loadSurAlerts(); loadSurDns(); loadSurTls(); } }, 3000);
+setInterval(()=>{ if(isTab('topology') && !topoPhysics) loadTopology(); }, 30000);
+setInterval(()=>{ if(isTab('pihole') && !phLoading) phLoad(); }, 20000);
+
+// ══════════════════════════════════════════════════════════════
+// CYBERPUNK ANIMATED BACKGROUND
+// ══════════════════════════════════════════════════════════════
+(function(){
+  const cv  = document.getElementById('bg-canvas');
+  if(!cv) return;
+  const ctx = cv.getContext('2d');
+
+  // Grid parameters
+  const GCELL = 32, GGAP = 1;
+  // Particle parameters  
+  const N_PARTICLES = 55;
+  const N_STREAKS   = 18;
+
+  let W, H, gridCols, gridRows, gridCells=[], particles=[], streaks=[];
+
+  // Color pools
+  const COLS = [
+    {r:0,  g:240,b:255},  // cyan
+    {r:153,g:69, b:255},  // purple
+    {r:255,g:0,  b:204},  // magenta
+    {r:0,  g:255,b:136},  // green
+    {r:0,  g:150,b:255},  // blue
+  ];
+  const lerp=(a,b,t)=>a+(b-a)*t;
+  function rCol(){return COLS[Math.floor(Math.random()*COLS.length)];}
+
+  // ── Grid cells ────────────────────────────────────────
+  function makeGridCell(col,row){
+    const c=rCol(), tc=rCol();
+    return{
+      x:col*GCELL, y:row*GCELL,
+      col:c, tCol:tc, cT:0, cSpd:0.001+Math.random()*.004,
+      alpha:Math.random()*.06,
+      tAlpha:Math.random()*.07,
+      aSpd:0.004+Math.random()*.012,
+      pulsePhase:Math.random()*Math.PI*2,
+    };
+  }
+
+  // ── Floating particles ───────────────────────────────
+  function makeParticle(){
+    const c=rCol();
+    return{
+      x:Math.random()*W, y:Math.random()*H,
+      vx:(Math.random()-.5)*.5,
+      vy:(Math.random()-.5)*.5,
+      r:1+Math.random()*2.5,
+      col:c, alpha:0.3+Math.random()*.5,
+      life:0, maxLife:200+Math.random()*400,
+    };
+  }
+
+  // ── Light streaks ────────────────────────────────────
+  function makeStreak(){
+    const horiz=Math.random()>.5;
+    const c=rCol();
+    return{
+      horiz,
+      x: horiz ? -100 : Math.random()*W,
+      y: horiz ? Math.random()*H : -50,
+      len:60+Math.random()*180,
+      speed:(horiz?1:-1)*(1.5+Math.random()*3),
+      col:c, alpha:0.4+Math.random()*.4,
+      width:1+Math.random()*.8,
+    };
+  }
+
+  function resize(){
+    W=cv.width=innerWidth;
+    H=cv.height=innerHeight;
+    gridCols=Math.ceil(W/GCELL)+1;
+    gridRows=Math.ceil(H/GCELL)+1;
+    gridCells=[];
+    for(let r=0;r<gridRows;r++)
+      for(let c=0;c<gridCols;c++)
+        gridCells.push(makeGridCell(c,r));
+    particles=Array.from({length:N_PARTICLES},makeParticle);
+    streaks=Array.from({length:N_STREAKS},makeStreak);
+  }
+
+  function drawGrid(t){
+    for(const g of gridCells){
+      // Pulse driven by wave
+      const wave=Math.sin(t*.0008+g.x*.004+g.y*.005)*.5+.5;
+      g.tAlpha=wave*.055+.005;
+      g.alpha+=(g.tAlpha-g.alpha)*g.aSpd;
+
+      // Color morph
+      g.cT+=g.cSpd;
+      if(g.cT>=1){g.col=g.tCol;g.tCol=rCol();g.cT=0;g.cSpd=.001+Math.random()*.004;}
+      const r=lerp(g.col.r,g.tCol.r,g.cT)|0;
+      const gg=lerp(g.col.g,g.tCol.g,g.cT)|0;
+      const b=lerp(g.col.b,g.tCol.b,g.cT)|0;
+
+      const x=g.x+GGAP, y=g.y+GGAP;
+      const sz=GCELL-GGAP*2;
+
+      ctx.fillStyle=`rgba(${r},${gg},${b},${g.alpha})`;
+      ctx.fillRect(x,y,sz,sz);
+
+      // Bright edge highlight on active cells
+      if(g.alpha>.03){
+        ctx.fillStyle=`rgba(${r},${gg},${b},${g.alpha*.7})`;
+        ctx.fillRect(x,y,sz,1);
+        ctx.fillRect(x,y,1,sz);
+      }
+    }
+  }
+
+  function drawParticles(t){
+    for(let i=0;i<particles.length;i++){
+      const p=particles[i];
+      p.life++;
+      if(p.life>=p.maxLife){particles[i]=makeParticle();continue;}
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<-10||p.x>W+10||p.y<-10||p.y>H+10){particles[i]=makeParticle();continue;}
+
+      const fade=Math.min(p.life/30, 1, (p.maxLife-p.life)/30);
+      const a=p.alpha*fade;
+      const{r,g,b}=p.col;
+
+      // Glow
+      const gd=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*4);
+      gd.addColorStop(0,`rgba(${r},${g},${b},${a*.6})`);
+      gd.addColorStop(1,`rgba(${r},${g},${b},0)`);
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,p.r*4,0,Math.PI*2);
+      ctx.fillStyle=gd;
+      ctx.fill();
+
+      // Core
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(${r},${g},${b},${a})`;
+      ctx.fill();
+    }
+  }
+
+  function drawStreaks(t){
+    for(let i=0;i<streaks.length;i++){
+      const s=streaks[i];
+      s.horiz ? s.x+=s.speed : s.y+=s.speed;
+      // Reset when off screen
+      const offscreen=s.horiz
+        ?(s.speed>0&&s.x>W+200)||(s.speed<0&&s.x<-200)
+        :(s.speed<0&&s.y<-200)||(s.speed>0&&s.y>H+200);
+      if(offscreen){streaks[i]=makeStreak();continue;}
+
+      const{r,g,b}=s.col;
+      const gd=s.horiz
+        ?ctx.createLinearGradient(s.x,s.y,s.x+s.len,s.y)
+        :ctx.createLinearGradient(s.x,s.y,s.x,s.y+s.len);
+      gd.addColorStop(0,`rgba(${r},${g},${b},0)`);
+      gd.addColorStop(0.5,`rgba(${r},${g},${b},${s.alpha})`);
+      gd.addColorStop(1,`rgba(${r},${g},${b},0)`);
+      ctx.beginPath();
+      if(s.horiz){
+        ctx.moveTo(s.x,s.y);ctx.lineTo(s.x+s.len,s.y);
+      } else {
+        ctx.moveTo(s.x,s.y);ctx.lineTo(s.x,s.y+s.len);
+      }
+      ctx.strokeStyle=gd;
+      ctx.lineWidth=s.width;
+      ctx.stroke();
+    }
+  }
+
+  let raf;
+  function loop(t){
+    ctx.clearRect(0,0,W,H);
+    drawGrid(t);
+    drawStreaks(t);
+    drawParticles(t);
+    raf=requestAnimationFrame(loop);
+  }
+
+  window.addEventListener('resize',resize);
+  resize();
+  raf=requestAnimationFrame(loop);
+})();
+
+</script>
+</body>
+</html>

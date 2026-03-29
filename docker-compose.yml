@@ -1,0 +1,83 @@
+# NetWatch Pro — Docker Compose
+# Configure passwords and settings in .env (copy from .env.example)
+
+services:
+
+  netwatch:
+    build: .
+    image: netwatch-pro:latest
+    container_name: netwatch-pro
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_PTRACE
+    user: root
+    env_file: .env
+    environment:
+      - SCAN_INTERVAL=${SCAN_INTERVAL:-60}
+      - NETWORK_RANGE=${NETWORK_RANGE:-auto}
+      - TZ=${TZ:-America/Chicago}
+      - SURICATA_EVE_LOG=${SURICATA_EVE_LOG:-/var/log/suricata/eve.json}
+      - CAPTURE_INTERFACES=${CAPTURE_INTERFACE:-eth0}
+      - PIHOLE_URL=${PIHOLE_URL:-http://127.0.0.1:8888}
+      - PIHOLE_PUBLIC_URL=${PIHOLE_PUBLIC_URL:-http://192.168.1.100:8888}
+      - PIHOLE_PASSWORD=${PIHOLE_PASSWORD:-changeme123}
+      - NETWATCH_PASSWORD=${NETWATCH_PASSWORD:-}
+      - PIHOLE_API_TOKEN=${PIHOLE_API_TOKEN:-}
+      - BEHIND_CLOUDFLARE=${BEHIND_CLOUDFLARE:-0}
+    volumes:
+      - netwatch_data:/app/data
+      - /var/log/suricata:/var/log/suricata:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  pihole:
+    image: pihole/pihole:latest
+    container_name: pihole
+    restart: unless-stopped
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "0.0.0.0:8888:80/tcp"
+    environment:
+      TZ: ${TZ:-America/Chicago}
+      WEBPASSWORD: "${PIHOLE_PASSWORD:-changeme123}"
+      PIHOLE_DNS_1: 1.1.1.1
+      PIHOLE_DNS_2: 8.8.8.8
+      FTLCONF_webserver_api_app_sudo: "true"
+      FTLCONF_dns_interface: "${CAPTURE_INTERFACE:-eth0}"
+      FTLCONF_dns_listening_mode: "all"
+      FTLCONF_webserver_api_allowed_hosts: "localhost,127.0.0.1"
+    volumes:
+      - pihole_data:/etc/pihole
+      - pihole_dnsmasq:/etc/dnsmasq.d
+    cap_add:
+      - NET_ADMIN
+      - NET_BIND_SERVICE
+    networks:
+      - pihole_net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  pihole_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+volumes:
+  netwatch_data:
+    driver: local
+  pihole_data:
+    driver: local
+  pihole_dnsmasq:
+    driver: local
