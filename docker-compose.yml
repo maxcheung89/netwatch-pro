@@ -1,5 +1,9 @@
 # NetWatch Pro — Docker Compose
 # Configure passwords and settings in .env (copy from .env.example)
+#
+# Pi-hole v6 NOTE: WEBPASSWORD is Pi-hole v5 only.
+# Password is set via `pihole setpassword` after container starts.
+# install.sh handles this automatically.
 
 services:
 
@@ -46,7 +50,9 @@ services:
       - "0.0.0.0:8888:80/tcp"
     environment:
       TZ: ${TZ:-America/Chicago}
-      WEBPASSWORD: "${PIHOLE_PASSWORD:-changeme123}"
+      # Pi-hole v6: password is set via `pihole setpassword` in install.sh
+      # WEBPASSWORD is v5 only and ignored in v6
+      FTLCONF_webserver_api_password: "${PIHOLE_PASSWORD:-changeme123}"
       PIHOLE_DNS_1: 1.1.1.1
       PIHOLE_DNS_2: 8.8.8.8
       FTLCONF_webserver_api_app_sudo: "true"

@@ -23,23 +23,9 @@ http://your-server-ip:5000
 | **Incidents** | Alert grouping engine — 1,000 alerts → "5 active incidents" |
 | **Pi-hole** | Full Pi-hole v6 dashboard: block rates, top clients, query types, enable/disable |
 | **Suricata** | Real-time IDS alert feed from Suricata EVE JSON |
-| **Health Score** | Single 0–100% network health metric, updated every 30 seconds |
-| **GeoIP** | External IPs resolved to country + org (hover in Top Talkers / alerts) |
+| **Health Score** | Single 0–100% network health metric with animated donut, updated every 30 seconds |
+| **GeoIP** | External IPs resolved to country + org in Top Talkers and alert cards |
 | **Block IP** | One-click Pi-hole blacklist + iptables commands for any suspicious IP |
-
----
-
-## Screenshots
-
-> Dashboard with animated health score, top talkers with GeoIP, live event log
-
-> Alerts tab with grouped incidents, severity pills, Block IP button
-
-> L1 Capture with colorful protocol-coded packet stream
-
-> L3 Discovery asset inventory with inline label editing
-
-> Pi-hole dashboard integrated directly in the app
 
 ---
 
@@ -49,8 +35,8 @@ http://your-server-ip:5000
 |------------|-------|
 | Ubuntu 22.04+ / Debian 12+ | Other Linux distros work; tested on Ubuntu |
 | Docker + Docker Compose v2 | `docker compose` (not `docker-compose`) |
-| Network interface with promiscuous mode support | Usually `eth0` — not WiFi |
-| Root / sudo access | Needed for raw socket capture |
+| Ethernet interface | WiFi does not support promiscuous mode capture |
+| Root / sudo access | Required for raw socket capture |
 | 1 GB RAM minimum | 2 GB recommended |
 | Suricata (optional) | Install on host for IDS integration |
 
@@ -65,18 +51,18 @@ cd netwatch-pro
 
 # 2. Configure
 cp .env.example .env
-nano .env        # set PIHOLE_PASSWORD and your server IP
+nano .env        # set PIHOLE_PASSWORD and your server's LAN IP
 
 # 3. Install
 sudo ./install.sh
 ```
 
 The installer:
-- Configures DNS so Docker can resolve during build
-- Wipes any old containers/volumes for a clean state
-- Verifies your network interface is UP
-- Builds the image and starts both services
-- Prints the URL and password when done
+- Reads config from `.env` — no hardcoded passwords anywhere
+- Detects your existing DNS setup and does **not** overwrite a working config
+- Builds the image, starts both containers
+- Automatically sets the Pi-hole password via `pihole setpassword`
+- Prints the URL, DNS server, and password when done
 
 **Access:** `http://your-server-ip:5000`  
 **Default login:** your Pi-hole password (set in `.env`)
@@ -89,6 +75,7 @@ All settings live in `.env`. Copy `.env.example` to get started:
 
 ```bash
 cp .env.example .env
+nano .env
 ```
 
 Key settings:
@@ -110,30 +97,119 @@ BEHIND_CLOUDFLARE=0
 TZ=America/Chicago
 ```
 
-> `.env` is listed in `.gitignore` — your passwords are never committed to git.
+> `.env` is in `.gitignore` — your passwords are never committed to git.
+
+---
+
+## DNS Port 53 Setup
+
+Pi-hole needs port 53. On Ubuntu 22.04+, `systemd-resolved` typically holds that port. You do **not** need to disable it — just tell it to stop using port 53:
+
+```bash
+# Add to /etc/systemd/resolved.conf
+sudo nano /etc/systemd/resolved.conf
+```
+
+```ini
+[Resolve]
+DNSStubListener=no
+```
+
+```bash
+sudo systemctl restart systemd-resolved
+echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8" | sudo tee /etc/resolv.conf
+```
+
+`install.sh` detects this configuration and skips the DNS setup step entirely.
+
+---
+
+## Pi-hole Password — Important Note
+
+**Pi-hole v6 changed how passwords work.** The `WEBPASSWORD` environment variable (v5) is silently ignored in v6. `install.sh` handles this by calling `pihole setpassword` automatically after startup — no manual steps needed.
+
+If you ever need to reset it manually:
+```bash
+docker exec -it pihole pihole setpassword your-new-password
+```
+
+---
+
+## Adding DNS Blocklists to Pi-hole
+
+Pi-hole blocks millions of ad, tracking, and malware domains using community-maintained blocklists. Adding more lists increases coverage significantly.
+
+### Recommended: Hagezi Pro+ Blocklist
+
+The [Hagezi DNS Blocklists](https://github.com/hagezi/dns-blocklists) are among the best maintained lists available. The **Pro Plus** list blocks ads, tracking, malware, phishing, and coin mining with minimal false positives.
+
+**Via Pi-hole Admin UI:**
+
+1. Open Pi-hole Admin → `http://your-server-ip:8888/admin`
+2. Go to **Lists** in the left sidebar
+3. Click **Add Blocklist**
+4. Paste this URL:
+   ```
+   https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/hosts/pro.plus-compressed.txt
+   ```
+5. Add a comment: `Hagezi Pro Plus`
+6. Click **Save**
+7. Run **Tools → Update Gravity** (or see command below)
+
+**Via command line:**
+
+```bash
+# Add the list to Pi-hole's database
+docker exec pihole pihole-FTL sqlite3 /etc/pihole/gravity.db \
+  "INSERT OR IGNORE INTO adlist (address, enabled, comment) \
+   VALUES ('https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/hosts/pro.plus-compressed.txt', 1, 'Hagezi Pro Plus');"
+
+# Download and apply all enabled blocklists
+docker exec pihole pihole -g
+```
+
+> Gravity update takes 1–3 minutes depending on your internet speed and how many lists you have. Pi-hole continues blocking during the update.
+
+### Other recommended lists
+
+| List | URL | What it blocks |
+|------|-----|---------------|
+| **Hagezi Pro+** | `https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/hosts/pro.plus-compressed.txt` | Ads, tracking, malware, phishing, coin mining |
+| **Hagezi Threat Intelligence** | `https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/hosts/tif.txt` | Known C2 / malware domains |
+| **OISD Big** | `https://big.oisd.nl` | Large general-purpose list |
+| **StevenBlack Unified** | `https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts` | Classic ads + malware |
+
+### Keeping lists updated
+
+Pi-hole updates gravity automatically once per week. To update manually:
+
+```bash
+docker exec pihole pihole -g
+```
 
 ---
 
 ## After Installation
 
-### Point your devices at Pi-hole DNS
+### 1. Point your router at Pi-hole DNS
 
-Set your router's DNS server to your server's IP. This routes all DNS queries through Pi-hole and makes them visible in NetWatch.
+Set your router's DNS server to your server's IP. Most routers: **Settings → DHCP → Primary DNS → your server IP**
 
-Most routers: **Settings → DHCP → DNS Server → set to your server IP**
+After changing, devices will use Pi-hole for DNS on their next DHCP renewal. You can force it by reconnecting to WiFi or running `sudo dhclient -r && sudo dhclient` on Linux.
 
-### Configure Pi-hole in NetWatch
+### 2. Configure Pi-hole in NetWatch
 
 1. Open NetWatch → click the **Pi-hole** tab
 2. Click **Configure**
 3. Enter your server's LAN IP and the password from `.env`
+4. Click **Save & Connect**
 
-### Set device labels
+### 3. Label your devices
 
-1. Open the **L3 Discovery** tab
+1. Open **L3 Discovery**
 2. Click any device name to edit it inline
-3. Export as CSV when done: **⬇ Export CSV**
-4. After a reinstall, reimport: **⬆ Import CSV** — all your labels restore instantly
+3. Click **⬇ Export CSV** to save your labels
+4. After any reinstall, click **⬆ Import CSV** to restore them instantly
 
 ---
 
@@ -142,77 +218,53 @@ Most routers: **Settings → DHCP → DNS Server → set to your server IP**
 ```bash
 cd netwatch-pro
 git pull
-sudo ./install.sh      # rebuilds image, wipes old volumes, restarts
-```
 
-> **Note:** `install.sh` wipes Docker volumes on every run for a clean build. Export your device labels CSV before updating if you want to preserve them.
+# Export device labels before wiping (install.sh wipes volumes)
+# NetWatch → L3 Discovery → ⬇ Export CSV
+
+sudo ./install.sh
+
+# Re-import labels after install
+# NetWatch → L3 Discovery → ⬆ Import CSV
+```
 
 ---
 
 ## Data and Databases
 
-NetWatch stores data in a Docker volume (`netwatch_data`) mounted at `/app/data` inside the container.
-
-See **[docs/DATA.md](docs/DATA.md)** for a full explanation of every database, table, and what the data means.
-
----
-
-## Accessing Data Directly
+See **[docs/DATA.md](docs/DATA.md)** for every database, table, and useful queries.
 
 ```bash
-# Open a shell inside the container
-docker exec -it netwatch-pro bash
+# Quick examples
+docker exec netwatch-pro sqlite3 /app/data/devices.db \
+  "SELECT ip, label, vendor FROM devices WHERE is_online=1"
 
-# Browse the data directory
-ls /app/data/
-
-# Query the device inventory
-sqlite3 /app/data/devices.db "SELECT ip, mac, hostname, vendor FROM devices ORDER BY last_seen DESC"
-
-# Query DNS history
-sqlite3 /app/data/datastore.db "SELECT datetime(ts,'unixepoch','localtime'), src_ip, query FROM dns_log ORDER BY ts DESC LIMIT 20"
-
-# View recent alerts
-sqlite3 /app/data/devices.db "SELECT datetime(ts,'unixepoch','localtime'), sev, title, detail FROM alerts ORDER BY ts DESC LIMIT 20"
-
-# Export a full JSON snapshot
-curl -b "nw_session=YOUR_SESSION" http://localhost:5000/api/export/full.json > netwatch_snapshot.json
+docker exec netwatch-pro sqlite3 /app/data/datastore.db \
+  "SELECT datetime(ts,'unixepoch','localtime'), src_ip, query FROM dns_log ORDER BY ts DESC LIMIT 20"
 ```
 
 ---
 
 ## Cloudflare Tunnel (remote access)
 
-To access NetWatch securely from outside your LAN:
+1. Install `cloudflared`, create a tunnel to `http://localhost:5000`
+2. Enable **True-Client-IP Header** in Cloudflare dashboard
+3. Set `BEHIND_CLOUDFLARE=1` in `.env`
+4. Run `sudo ./install.sh`
 
-1. Install `cloudflared` on your server
-2. Create a tunnel pointing to `http://localhost:5000`
-3. In `.env` set `BEHIND_CLOUDFLARE=1`
-4. Enable **True-Client-IP Header** in the Cloudflare dashboard
-5. Reinstall: `sudo ./install.sh`
-
-With `BEHIND_CLOUDFLARE=1`, session cookies are set with `Secure=True` (HTTPS only), and real client IPs come from the `CF-Connecting-IP` header instead of the proxy IP.
+See **[docs/SETUP.md](docs/SETUP.md)** for the full guide.
 
 ---
 
 ## Suricata IDS Integration
 
-Suricata provides deep packet inspection and signature-based threat detection that complements NetWatch's own heuristics.
-
 ```bash
-# Install Suricata on host
-sudo apt install suricata
-
-# Update rules
+sudo apt install suricata suricata-update
 sudo suricata-update
-
-# Start Suricata on your interface
-sudo suricata -D -i eth0 -c /etc/suricata/suricata.yaml
-
-# NetWatch reads /var/log/suricata/eve.json automatically
+sudo systemctl enable --now suricata
 ```
 
-See **[docs/SETUP.md](docs/SETUP.md)** for detailed Suricata configuration.
+NetWatch reads `/var/log/suricata/eve.json` automatically. See **[docs/SETUP.md](docs/SETUP.md)** for configuration details.
 
 ---
 
@@ -226,27 +278,19 @@ See **[docs/SETUP.md](docs/SETUP.md)** for detailed Suricata configuration.
 │  │              netwatch-pro container              │   │
 │  │                                                  │   │
 │  │  AF_PACKET ──► capture.py                       │   │
+│  │     │                                            │   │
+│  │  protocol.py  flows.py  discovery.py             │   │
+│  │  alerts.py  incidents.py  health.py  geoip.py    │   │
+│  │     └──────────► app.py (Flask + SocketIO)       │   │
 │  │                    │                             │   │
-│  │          ┌─────────┼─────────┐                  │   │
-│  │      protocol.py  flows.py  discovery.py         │   │
-│  │          │          │          │                 │   │
-│  │      alerts.py  incidents.py  health.py          │   │
-│  │          │          │          │                 │   │
-│  │          └─────────►app.py◄───┘                  │   │
-│  │                     │                            │   │
-│  │              Flask + SocketIO                    │   │
-│  │                     │                            │   │
-│  │    ┌────────────────┴──────────────────┐         │   │
-│  │ devices.db  datastore.db  events.db  geoip.db    │   │
+│  │   devices.db  datastore.db  events.db  geoip.db  │   │
 │  └─────────────────────────────────────────────────┘   │
 │                                                         │
 │  ┌─────────────────────────────────────────────────┐   │
-│  │                pihole container                  │   │
-│  │            Pi-hole v6 DNS + Admin UI             │   │
+│  │    pihole container  ─  Pi-hole v6 DNS + Web UI  │   │
 │  └─────────────────────────────────────────────────┘   │
 │                                                         │
-│  Suricata (optional, runs on host)                      │
-│  eve.json ──► mounted read-only into netwatch           │
+│  Suricata ──► /var/log/suricata/eve.json (read-only)    │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -254,64 +298,61 @@ See **[docs/SETUP.md](docs/SETUP.md)** for detailed Suricata configuration.
 
 ## Troubleshooting
 
-**Tabs not loading / blank page after login**
-```bash
-docker compose logs netwatch --tail 50
-```
+**All tabs blank / only dashboard shows**  
+Hard-reload the page (`Ctrl+Shift+R`). Check browser console for JavaScript errors.
 
-**Pi-hole not connecting**
+**Pi-hole not connecting / wrong password**
 ```bash
-# Check Pi-hole is running
+# Pi-hole v6 requires setpassword — env vars are unreliable in v6:
+docker exec -it pihole pihole setpassword your-password
+
+# Verify Pi-hole is responding
 curl http://localhost:8888/admin/
-
-# Check NetWatch can reach it
-docker exec netwatch-pro curl http://127.0.0.1:8888/api/auth
-```
-
-**No packets captured**
-```bash
-# Verify your interface is UP
-ip link show eth0
-
-# Check the container has raw socket access
-docker exec netwatch-pro tcpdump -i eth0 -c 5
+docker compose logs pihole --tail 30
 ```
 
 **Login cookie not sticking (LAN access)**  
-Make sure `BEHIND_CLOUDFLARE=0` in `.env`. The `=1` setting forces `Secure` cookies which don't work over plain HTTP.
+Ensure `BEHIND_CLOUDFLARE=0` in `.env`. The `=1` setting requires HTTPS.
 
-**Out of disk space**  
+**No packets captured**
 ```bash
-# Check volume size
-docker system df
-# Archive old data (runs automatically nightly, or trigger manually)
-curl -X POST http://localhost:5000/api/archive/trigger
+ip link show eth0
+grep CAPTURE_INTERFACE .env
+docker exec netwatch-pro tcpdump -i eth0 -c 5
+```
+
+**Port 53 already in use**
+```bash
+echo -e "[Resolve]\nDNSStubListener=no" | sudo tee -a /etc/systemd/resolved.conf
+sudo systemctl restart systemd-resolved
+echo -e "nameserver 1.1.1.1\nnameserver 8.8.8.8" | sudo tee /etc/resolv.conf
+sudo ./install.sh
+```
+
+**Suricata alerts not showing**
+```bash
+sudo tail -f /var/log/suricata/eve.json
+docker exec netwatch-pro ls /var/log/suricata/
 ```
 
 ---
 
 ## Contributing
 
-Pull requests welcome. Please:
-1. Run the project and verify your change works end-to-end
-2. Keep backend Python files passing `ast.parse()` with no bare `except:` clauses
-3. Keep frontend JS passing `node --check` with no duplicate function definitions
-4. Update `CHANGELOG.md` with a one-line summary
+1. Verify your change works end-to-end on a real deployment
+2. Python: no bare `except:` clauses, passes `ast.parse()`
+3. JavaScript: passes `node --check`, no duplicate function definitions
+4. Update `CHANGELOG.md`
 
 ---
 
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE)
 
 ---
 
 ## Credits
 
-Built with:
-- [Flask](https://flask.palletsprojects.com/) + [Flask-SocketIO](https://flask-socketio.readthedocs.io/)
-- [Pi-hole](https://pi-hole.net/) for DNS filtering
-- [Suricata](https://suricata.io/) for IDS
-- [ip-api.com](https://ip-api.com/) for GeoIP (free tier, no key needed)
-- [Chart.js](https://www.chartjs.org/) for bandwidth charts
-- IBM Plex Mono for the cyberpunk monospace aesthetic
+Built with: Flask · Flask-SocketIO · Pi-hole · Suricata · ip-api.com · Chart.js · IBM Plex Mono  
+Blocklists: [Hagezi DNS Blocklists](https://github.com/hagezi/dns-blocklists)

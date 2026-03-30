@@ -35,6 +35,41 @@ newgrp docker
 docker compose version   # should show v2.x.x
 ```
 
+### DNS Setup (port 53)
+
+Pi-hole needs port 53. If `systemd-resolved` is already using it, you have two options:
+
+**Option A** (recommended — keep systemd-resolved running):
+```bash
+# Add to /etc/systemd/resolved.conf
+sudo nano /etc/systemd/resolved.conf
+```
+```ini
+[Resolve]
+DNSStubListener=no
+```
+```bash
+sudo systemctl restart systemd-resolved
+# Verify port 53 is free
+sudo ss -tulnp | grep :53
+```
+Then point `/etc/resolv.conf` at real DNS:
+```bash
+sudo bash -c 'echo "nameserver 1.1.1.1
+nameserver 8.8.8.8" > /etc/resolv.conf'
+```
+
+**Option B** (disable systemd-resolved entirely):
+```bash
+sudo systemctl disable --now systemd-resolved
+sudo bash -c 'echo "nameserver 1.1.1.1
+nameserver 8.8.8.8" > /etc/resolv.conf'
+```
+
+`install.sh` detects your existing DNS setup and **will not overwrite** a working configuration.
+
+---
+
 ### Check your network interface
 
 ```bash
@@ -134,6 +169,21 @@ NetWatch will start discovering devices immediately. Once they appear in **L3 Di
 ## Network Setup
 
 For NetWatch to see your entire network's DNS traffic, set your router to use your server as its DNS server.
+
+### Pi-hole v6 Password Note
+
+Pi-hole v6 changed how passwords work. The old `WEBPASSWORD` environment variable from v5 is silently ignored. `install.sh` handles this automatically by calling:
+
+```bash
+docker exec pihole pihole setpassword YOUR_PASSWORD
+```
+
+If you ever need to reset it manually:
+```bash
+docker exec -it pihole pihole setpassword your-new-password
+```
+
+---
 
 ### On your router (most common)
 
@@ -274,7 +324,30 @@ With `BEHIND_CLOUDFLARE=1`:
 
 ---
 
+## Pi-hole Blocklists
+
+After installation, add extra blocklists to Pi-hole to dramatically increase DNS filtering coverage.
+
+### Hagezi Pro+ (recommended)
+
+```bash
+# Add via command line (fastest)
+docker exec pihole pihole-FTL sqlite3 /etc/pihole/gravity.db \
+  "INSERT OR IGNORE INTO adlist (address, enabled, comment) \
+   VALUES ('https://raw.githubusercontent.com/hagezi/dns-blocklists/refs/heads/main/hosts/pro.plus-compressed.txt', 1, 'Hagezi Pro Plus');"
+
+# Apply the new list
+docker exec pihole pihole -g
+```
+
+Or via Pi-hole Admin UI → **Lists** → **Add Blocklist** → paste the URL → **Save** → **Update Gravity**.
+
+See the full list of recommended blocklists in [README.md](../README.md#adding-dns-blocklists-to-pi-hole).
+
+---
+
 ## Updating
+
 
 ```bash
 cd netwatch-pro
