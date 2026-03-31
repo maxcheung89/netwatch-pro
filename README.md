@@ -1,4 +1,5 @@
-# NetWatch Pro
+
+<img width="832" height="336" alt="netwatch pro logo" src="https://github.com/user-attachments/assets/2ef0edcc-0797-4c49-88e6-0eb9f7832964" />
 
 **A self-hosted network intelligence platform for your home lab.**
 
