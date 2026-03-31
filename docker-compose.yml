@@ -73,6 +73,30 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  discord-bot:
+    build: ./discord-bot
+    image: netwatch-discord-bot:latest
+    container_name: netwatch-discord
+    restart: unless-stopped
+    # Bot connects to NetWatch via host network (same machine)
+    network_mode: host
+    environment:
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID}
+      - NETWATCH_URL=${NETWATCH_URL:-http://localhost:5000}
+      - NETWATCH_PASSWORD=${NETWATCH_PASSWORD:-}
+      - PIHOLE_PASSWORD=${PIHOLE_PASSWORD:-changeme123}
+      - POLL_INTERVAL=${POLL_INTERVAL:-30}
+      - MIN_NOTIFY_SEV=${MIN_NOTIFY_SEV:-high}
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    # Only start if both required env vars are set
+    profiles:
+      - discord
+
 networks:
   pihole_net:
     driver: bridge
