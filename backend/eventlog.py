@@ -10,7 +10,7 @@ from typing import List, Optional
 log = logging.getLogger(__name__)
 
 # Keep last 30 days or 50,000 rows — whichever comes first
-MAX_ROWS    = 50_000
+MAX_ROWS    = 500_000
 MAX_AGE_SEC = 30 * 86_400   # 30 days
 PRUNE_EVERY = 3600           # prune check every hour
 

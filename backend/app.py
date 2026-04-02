@@ -482,7 +482,7 @@ def api_events():
 def api_events_history():
     """Persistent event history with search and pagination."""
     return jsonify(event_log.query(
-        limit     = min(int(request.args.get('limit', 100)), 500),
+        limit     = min(int(request.args.get('limit', 500)), 10000),
         offset    = int(request.args.get('offset', 0)),
         ev_type   = request.args.get('type'),
         ip        = request.args.get('ip'),
@@ -540,7 +540,7 @@ def api_scan():
 @app.route('/api/alerts')
 def api_alerts():
     return jsonify(alert_engine.get_alerts(
-        limit=200,
+        limit=int(request.args.get('limit', 1000)),
         sev=request.args.get('sev'),
         cat=request.args.get('cat'),
         unread_only=request.args.get('unread') == '1',
@@ -574,7 +574,7 @@ def api_sur_summary(): return jsonify(suricata_engine.get_summary())
 @app.route('/api/suricata/alerts')
 def api_sur_alerts():
     return jsonify(suricata_engine.get_alerts(
-        limit=int(request.args.get('limit', 200)),
+        limit=int(request.args.get('limit', 1000)),
         sev=request.args.get('sev'),
         cat=request.args.get('cat'),
     ))
@@ -634,7 +634,7 @@ def api_hist_dns():
         range_str = request.args.get('range', '1d'),
         ip        = request.args.get('ip', ''),
         q         = request.args.get('q', ''),
-        limit     = min(int(request.args.get('limit', 200)), 500),
+        limit     = min(int(request.args.get('limit', 500)), 5000),
         offset    = int(request.args.get('offset', 0)),
     ))
 
@@ -644,7 +644,7 @@ def api_hist_tls():
         range_str = request.args.get('range', '1d'),
         ip        = request.args.get('ip', ''),
         sni       = request.args.get('sni', ''),
-        limit     = min(int(request.args.get('limit', 200)), 500),
+        limit     = min(int(request.args.get('limit', 500)), 5000),
         offset    = int(request.args.get('offset', 0)),
     ))
 
@@ -655,7 +655,7 @@ def api_hist_flows():
         ip        = request.args.get('ip', ''),
         port      = request.args.get('port', ''),
         proto     = request.args.get('proto', ''),
-        limit     = min(int(request.args.get('limit', 200)), 500),
+        limit     = min(int(request.args.get('limit', 500)), 5000),
         offset    = int(request.args.get('offset', 0)),
     ))
 

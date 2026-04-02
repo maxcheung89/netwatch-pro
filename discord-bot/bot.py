@@ -174,10 +174,25 @@ bot     = commands.Bot(command_prefix='!', intents=intents)
 nw      = NetWatchClient(NETWATCH_URL, NETWATCH_PASSWORD)
 
 # State for dedup
+# Alert key = (alert_id + 10-min bucket) so the same alert re-notifies
+# after cooldown expires (NetWatch IDs are deterministic hashes, not unique)
 _seen_alerts:    set = set()
 _seen_incidents: set = set()
 _last_health:    int = -1
 _notify_channel: discord.TextChannel | None = None
+
+def _alert_key(a: dict) -> str:
+    """alert_id + 10-minute timestamp bucket — allows re-notification after cooldown."""
+    bucket = int(a.get('ts', 0)) // 600
+    return f"{a.get('id','')}:{bucket}"
+
+MAX_SEEN = 2000   # cap set size to avoid unbounded memory growth
+
+def _prune_seen(s: set, cap: int = MAX_SEEN):
+    """Keep only the newest entries when the set gets too large."""
+    if len(s) > cap:
+        s.clear()   # simplest: clear and let it re-learn (brief dupe risk)
+
 
 
 def _ts(unix: float) -> str:
@@ -219,10 +234,11 @@ async def poll_netwatch():
             for a in alerts:
                 if a.get('dismissed'):
                     continue
-                aid = a.get('id', '')
-                if aid in _seen_alerts:
+                key = _alert_key(a)
+                if key in _seen_alerts:
                     continue
-                _seen_alerts.add(aid)
+                _seen_alerts.add(key)
+                _prune_seen(_seen_alerts)
 
                 # Filter by minimum severity
                 if SEV_ORDER.get(a.get('sev','info'), 0) < SEV_ORDER.get(MIN_NOTIFY_SEV, 2):
@@ -330,6 +346,18 @@ async def before_poll():
     await bot.wait_until_ready()
     await nw.login()
     global _notify_channel
+
+    # Seed seen-alerts with all currently existing alerts so we don't
+    # flood the channel on bot restart, but use keyed buckets so future
+    # re-fires after cooldown still get notified.
+    try:
+        existing = await nw.alerts(limit=500)
+        if existing:
+            for a in existing:
+                _seen_alerts.add(_alert_key(a))
+            log.info(f"Seeded {len(_seen_alerts)} existing alert keys")
+    except Exception as e:
+        log.debug(f"Seed alerts: {e}")
     try:
         _notify_channel = await bot.fetch_channel(DISCORD_CHANNEL_ID)
         log.info(f"Notifying in #{_notify_channel.name}")

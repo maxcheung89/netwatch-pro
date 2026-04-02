@@ -144,7 +144,7 @@ BRUTE_PORTS = {22:'SSH', 3389:'RDP', 21:'FTP', 23:'Telnet',
 
 
 class AlertEngine:
-    MAX_ALERTS = 1000
+    MAX_ALERTS = 10_000
 
     def __init__(self, db_path='/app/data/devices.db', emit_fn=None):
         self._alerts: List[Alert] = []
@@ -206,7 +206,7 @@ class AlertEngine:
     def _load_db(self):
         try:
             conn = self._conn()
-            rows = conn.execute('SELECT * FROM alerts ORDER BY ts DESC LIMIT 500').fetchall()
+            rows = conn.execute('SELECT * FROM alerts ORDER BY ts DESC LIMIT 10000').fetchall()
             conn.close()
             with self._lock:
                 self._alerts = [Alert(
@@ -528,7 +528,7 @@ class AlertEngine:
             ), cooldown=300)
 
     # ── Public API ────────────────────────────────────────────
-    def get_alerts(self, limit=200, sev=None, cat=None, unread_only=False):
+    def get_alerts(self, limit=10000, sev=None, cat=None, unread_only=False):
         with self._lock: alerts = self._alerts[:]
         if sev:         alerts = [a for a in alerts if a.sev == sev]
         if cat:         alerts = [a for a in alerts if a.cat == cat]

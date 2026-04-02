@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 
 ---
 
+## [v32] — Record Limits Removed + Data Analysis + Logo
+- **Alert cap raised** — in-memory and DB limits raised from 1,000 → 10,000; no more truncated alert history
+- **Suricata cap raised** — from 2,000 → 10,000 stored alerts
+- **Event log cap raised** — from 50,000 → 500,000 rows (SQLite handles this fine with WAL mode)
+- **API response limits raised** — history endpoints: 500 → 5,000 per page; alerts API: 200 → 1,000 default
+- **Logo** — replaced text/hex logo with PNG image on both topbar and login page (`frontend/logo.png`)
+- **Discord bot alert dedup fix** — alerts were going silent because NetWatch IDs are deterministic hashes; fixed with 10-minute timestamp bucket so re-fired alerts notify again
+- **Discord bot channel fix** — `get_channel()` (cache-only) replaced with `fetch_channel()` (real API call) — resolves "channel not found" on startup
+- **`.env` file** — all passwords and settings moved out of `docker-compose.yml` into `.env`
+- **Pi-hole v6 password** — `install.sh` now calls `pihole setpassword` after startup (env vars are ignored by Pi-hole v6)
+- **DNS check non-destructive** — `install.sh` detects existing DNS setup (`DNSStubListener=no`, direct nameservers) and never overwrites a working config
+- **Hagezi blocklist docs** — `README.md` and `docs/SETUP.md` include instructions for adding Hagezi Pro+ and other blocklists
+
 ## [v31] — Mobile & Live Indicator Fixes
 - **Topbar LIVE dot** — ws-pill now shows blinking red dot when WebSocket is connected; turns grey when offline
 - **Mobile menu fixed** — `toggleMobileNav()` logic bug caused menu to open and immediately close; fixed to clean if/else

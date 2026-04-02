@@ -472,7 +472,7 @@ class SuricataEngine:
     Provides REST API data and feeds WebSocket events.
     """
 
-    MAX_ALERTS   = 2000
+    MAX_ALERTS   = 10_000
     MAX_FLOWS    = 1000
     MAX_DNS      = 500
     MAX_TLS      = 500
