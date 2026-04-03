@@ -30,13 +30,11 @@
   --bg-solid:#060810;
 
   /* Glass */
-  --glass:   rgba(6,10,24,0.72);
   --glass2:  rgba(10,16,36,0.55);
   --blur:    blur(14px);
 
   /* Borders */
   --border:  rgba(0,240,255,0.10);
-  --border2: rgba(0,240,255,0.18);
   --border3: rgba(153,69,255,0.2);
 
   /* Text */
@@ -82,12 +80,10 @@ body::after{
 
 /* ── Topbar ─────────────────────────────────────────────────── */
 .topbar{
-  position:fixed;top:0;left:0;right:0;height:44px;z-index:100;
+  position:fixed;top:0;left:155px;right:0;height:56px;z-index:100;
   background:rgba(4,6,16,0.92);
-  border-bottom:1px solid var(--border2);
   backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
   display:flex;align-items:center;gap:0;padding:0 14px;
-  box-shadow:0 2px 30px rgba(0,240,255,0.06);
 }
 
 /* Logo */
@@ -100,22 +96,22 @@ body::after{
 
 /* Tab nav */
 .layer-tabs{
-  display:flex;align-items:stretch;height:100%;flex:1;gap:1px;
-  overflow-x:auto;scrollbar-width:none;
+  display:none;  /* tabs moved to sidebar — only used on mobile fallback */
 }
 .layer-tabs::-webkit-scrollbar{display:none;}
 
 .ltab{
-  display:flex;align-items:center;gap:5px;
-  padding:0 13px;font-size:10px;font-weight:500;
-  letter-spacing:1px;text-transform:uppercase;
+  display:flex;align-items:center;gap:8px;
+  padding:9px 14px;font-size:10px;font-weight:500;
+  letter-spacing:.8px;text-transform:uppercase;
   color:var(--cd);cursor:pointer;white-space:nowrap;
-  border-bottom:2px solid transparent;
+  border-left:2px solid transparent;   /* vertical accent */
+  border-bottom:none;
   transition:color .15s,border-color .15s,background .15s;
-  position:relative;font-family:var(--mono);
+  position:relative;font-family:var(--mono);width:100%;
 }
-.ltab:hover{color:var(--ct);background:rgba(0,240,255,0.04);}
-.ltab.active{color:var(--cyan);border-bottom-color:var(--cyan);}
+.ltab:hover{color:var(--ct);background:rgba(0,240,255,0.05);}
+.ltab.active{color:var(--cyan);border-left-color:var(--cyan);background:rgba(0,240,255,0.07);}
 
 /* Per-tab active colors */
 .ltab[data-t="capture"].active   {color:var(--c1);border-bottom-color:var(--c1);}
@@ -192,7 +188,7 @@ body::after{
 
 /* ── Content area ────────────────────────────────────────────── */
 .content{
-  position:fixed;top:44px;left:0;right:0;bottom:0;
+  position:fixed;top:56px;left:155px;right:0;bottom:0;
   z-index:10;overflow:hidden;
   display:flex;flex-direction:column;
   padding:12px;gap:8px;
@@ -605,7 +601,7 @@ code{font-family:var(--mono);font-size:10px;color:var(--cyan);
 #global-filter{
   background:rgba(0,240,255,.05);
   border:1px solid rgba(0,240,255,.15);
-  color:var(--ct);padding:3px 28px 3px 9px;
+  color:var(--ct);padding:4px 24px 4px 9px;
   border-radius:3px;font-family:var(--mono);font-size:10px;
   outline:none;width:160px;
   transition:border-color .2s,box-shadow .2s,width .2s;
@@ -616,12 +612,14 @@ code{font-family:var(--mono);font-size:10px;color:var(--cyan);
 }
 #global-filter::placeholder{color:var(--cd);}
 #global-filter-clear{
-  position:absolute;right:10px;background:none;border:none;
-  color:var(--cd);cursor:pointer;font-size:12px;padding:2px;
-  transition:color .15s;display:none;
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  background:none;border:none;
+  color:var(--cd);cursor:pointer;font-size:11px;padding:2px 3px;
+  transition:color .15s;display:none;line-height:1;
+  z-index:1;
 }
 #global-filter-clear:hover{color:var(--red);}
-.gf-wrap{position:relative;}
+.gf-wrap{position:relative;display:inline-flex;align-items:center;}
 .gf-label{font-family:var(--mono);font-size:9px;color:var(--cd);letter-spacing:1px;white-space:nowrap;}
 
 
@@ -667,7 +665,7 @@ code{font-family:var(--mono);font-size:10px;color:var(--cyan);
 @media (max-width: 768px){
   /* ── Topbar ─────────────────────────────────────────────── */
   .topbar{
-    flex-wrap:nowrap;height:44px;padding:0 8px;gap:6px;
+    flex-wrap:nowrap;height:56px;padding:0 8px;gap:6px;
   }
   #hamburger{ display:flex !important;order:-1; }
   .layer-tabs{ display:none; }
@@ -1039,6 +1037,126 @@ code{font-family:var(--mono);font-size:10px;color:var(--cyan);
   .btn-scan { display: none; } /* hide scan on very small — accessible via settings */
 }
 
+
+/* ══════════════════════════════════════════════════════════════
+   LEFT SIDEBAR
+   ══════════════════════════════════════════════════════════════ */
+.sidebar{
+  position:fixed;top:0;left:0;width:155px;bottom:0;
+  z-index:101;
+  background:rgba(4,6,18,0.12);
+  backdrop-filter:blur(24px) saturate(160%);
+  -webkit-backdrop-filter:blur(24px) saturate(160%);
+  
+  display:flex;flex-direction:column;
+  overflow-y:auto;overflow-x:hidden;
+  scrollbar-width:none;
+}
+.sidebar::-webkit-scrollbar{display:none;}
+
+/* Logo area */
+.sidebar-logo{
+  height:56px;
+  padding:0 10px;
+  cursor:pointer;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  box-sizing:border-box;
+}
+.sidebar-logo:hover img{filter:brightness(1.1);}
+
+/* Tab list */
+.sidebar-tabs{
+  display:flex;flex-direction:column;
+  flex:1;padding:8px 8px;gap:5px;
+}
+
+/* ── Glass tab buttons ──────────────────────────────────────── */
+.ltab{
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  height:43px;
+  padding:0 8px;
+  font-size:12px;font-weight:700;
+  letter-spacing:.4px;text-transform:uppercase;
+  font-family:var(--mono);
+  cursor:pointer;
+  border-radius:4px;
+  border:1px solid rgba(255,255,255,.06);
+  background:rgba(255,255,255,.03);
+  color:var(--cd);
+  transition:all .18s;
+  position:relative;
+  overflow:hidden;
+  width:100%;
+  border-bottom:none;
+  border-left:none;
+  box-sizing:border-box;
+}
+.ltab:hover{
+  background:rgba(255,255,255,.07);
+  border-color:rgba(255,255,255,.1);
+  color:var(--ct);
+}
+
+/* Each tab gets its own glass colour when active */
+.ltab[data-t="dashboard"].active{
+  background:rgba(0,240,255,.12);border-color:rgba(0,240,255,.3);
+  color:var(--cyan);box-shadow:0 0 12px rgba(0,240,255,.1),inset 0 1px 0 rgba(0,240,255,.15);
+}
+.ltab[data-t="capture"].active{
+  background:rgba(0,240,255,.1);border-color:rgba(0,240,255,.25);
+  color:var(--c1);box-shadow:0 0 12px rgba(0,240,255,.08),inset 0 1px 0 rgba(0,240,255,.12);
+}
+.ltab[data-t="protocol"].active{
+  background:rgba(102,136,255,.12);border-color:rgba(102,136,255,.3);
+  color:var(--c2);box-shadow:0 0 12px rgba(102,136,255,.1),inset 0 1px 0 rgba(102,136,255,.15);
+}
+.ltab[data-t="discovery"].active{
+  background:rgba(0,255,136,.1);border-color:rgba(0,255,136,.25);
+  color:var(--c3);box-shadow:0 0 12px rgba(0,255,136,.08),inset 0 1px 0 rgba(0,255,136,.12);
+}
+.ltab[data-t="flows"].active{
+  background:rgba(255,170,0,.1);border-color:rgba(255,170,0,.25);
+  color:var(--c4);box-shadow:0 0 12px rgba(255,170,0,.08),inset 0 1px 0 rgba(255,170,0,.12);
+}
+.ltab[data-t="topology"].active{
+  background:rgba(153,69,255,.12);border-color:rgba(153,69,255,.3);
+  color:var(--purple);box-shadow:0 0 12px rgba(153,69,255,.1),inset 0 1px 0 rgba(153,69,255,.15);
+}
+.ltab[data-t="alerts"].active{
+  background:rgba(255,40,85,.1);border-color:rgba(255,40,85,.25);
+  color:var(--red);box-shadow:0 0 12px rgba(255,40,85,.08),inset 0 1px 0 rgba(255,40,85,.12);
+}
+.ltab[data-t="suricata"].active{
+  background:rgba(255,170,0,.1);border-color:rgba(255,170,0,.25);
+  color:var(--amber);box-shadow:0 0 12px rgba(255,170,0,.08),inset 0 1px 0 rgba(255,170,0,.12);
+}
+.ltab[data-t="pihole"].active{
+  background:rgba(0,180,216,.1);border-color:rgba(0,180,216,.25);
+  color:#00b4d8;box-shadow:0 0 12px rgba(0,180,216,.08),inset 0 1px 0 rgba(0,180,216,.12);
+}
+.ltab[data-t="settings"].active{
+  background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.12);
+  color:var(--ct);
+}
+
+/* Active dot pulse keeps same color as tab */
+.ltab.active .tdot{ opacity:1; animation:blink-dot 1.8s ease-in-out infinite; }
+
+.ltab-label{ flex:1; }
+
+/* Logo in topbar: hidden — logo lives in sidebar */
+.logo{ display:none; }
+
+/* Topbar starts after sidebar */
+.topbar{ padding-left:10px; }
+
+/* ── Mobile: sidebar hidden, full-width topbar ───────────────── */
+@media (max-width: 768px){
+  .sidebar{ display:none; }
+  .topbar{ left:0 !important; }
+  .content{ left:0 !important; }
+}
+
 </style>
   <!-- Anti-FOUC: hide non-active panels before first paint -->
   <style>
@@ -1052,24 +1170,10 @@ code{font-family:var(--mono);font-size:10px;color:var(--cyan);
 
 <!-- TOPBAR -->
 <div class="topbar">
-  <!-- Hamburger: first in DOM so it is leftmost on mobile -->
+  <!-- Hamburger: mobile only -->
   <button id="hamburger" onclick="toggleMobileNav()" aria-label="Menu">☰</button>
-  <div class="logo" onclick="tab('dashboard')" style="cursor:pointer;padding:0;display:flex;align-items:center" title="Go to Dashboard">
-    <img src="/logo.png" alt="NetWatch Pro" style="height:32px;width:auto;display:block;">
-  </div>
-  <!-- Desktop tab strip (hidden on mobile, replaced by drawer) -->
-  <div class="layer-tabs">
-    <div class="ltab active" data-t="dashboard"  onclick="tab('dashboard')" ><span class="tdot"></span>Dashboard</div>
-    <div class="ltab" data-t="capture"            onclick="tab('capture')"  ><span class="tdot"></span>L1 Capture</div>
-    <div class="ltab" data-t="protocol"           onclick="tab('protocol')" ><span class="tdot"></span>L2 Protocol</div>
-    <div class="ltab" data-t="discovery"          onclick="tab('discovery')"><span class="tdot"></span>L3 Discovery</div>
-    <div class="ltab" data-t="flows"              onclick="tab('flows')"    ><span class="tdot"></span>L4 Flows</div>
-    <div class="ltab" data-t="topology"           onclick="tab('topology')" ><span class="tdot"></span>Topology</div>
-    <div class="ltab" data-t="alerts"             onclick="tab('alerts')"   ><span class="tdot"></span>Alerts<span class="badge" id="alert-badge">0</span></div>
-    <div class="ltab" data-t="suricata"           onclick="tab('suricata')" ><span class="tdot" style="background:var(--c4)"></span>⚡ Suricata<span class="badge" id="sur-badge" style="display:none;background:var(--c4)">0</span></div>
-    <div class="ltab" data-t="pihole"            onclick="tab('pihole')"   ><span class="tdot" style="background:#00b4d8"></span>🔵 Pi-hole</div>
-    <div class="ltab" data-t="settings"           onclick="tab('settings')" ><span class="tdot"></span>⚙ Settings</div>
-  </div>
+  <!-- Spacer pushes everything to the right -->
+  <div style="flex:1"></div>
   <!-- Global IP/MAC sync filter -->
   <div id="global-filter-wrap">
     <span class="gf-label">🔍 FILTER:</span>
@@ -1090,6 +1194,25 @@ code{font-family:var(--mono);font-size:10px;color:var(--cyan);
     <button onclick="doLogout()" class="btn-logout">⏻ LOGOUT</button>
   </div>
 </div>
+
+<!-- LEFT SIDEBAR NAV (desktop) -->
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-logo" onclick="tab('dashboard')" title="Go to Dashboard">
+    <img src="/logo.png" alt="NetWatch Pro" style="width:120px;height:auto;display:block;margin:8px auto 4px;">
+  </div>
+  <div class="sidebar-tabs">
+    <div class="ltab active" data-t="dashboard"  onclick="tab('dashboard')" ><span class="tdot"></span><span class="ltab-label">Dashboard</span></div>
+    <div class="ltab" data-t="capture"            onclick="tab('capture')"  ><span class="tdot"></span><span class="ltab-label">L1 Capture</span></div>
+    <div class="ltab" data-t="protocol"           onclick="tab('protocol')" ><span class="tdot"></span><span class="ltab-label">L2 Protocol</span></div>
+    <div class="ltab" data-t="discovery"          onclick="tab('discovery')"><span class="tdot"></span><span class="ltab-label">L3 Discovery</span></div>
+    <div class="ltab" data-t="flows"              onclick="tab('flows')"    ><span class="tdot"></span><span class="ltab-label">L4 Flows</span></div>
+    <div class="ltab" data-t="topology"           onclick="tab('topology')" ><span class="tdot"></span><span class="ltab-label">Topology</span></div>
+    <div class="ltab" data-t="alerts"             onclick="tab('alerts')"   ><span class="tdot"></span><span class="ltab-label">Alerts</span><span class="badge" id="alert-badge">0</span></div>
+    <div class="ltab" data-t="suricata"           onclick="tab('suricata')" ><span class="tdot" style="background:var(--c4)"></span><span class="ltab-label">⚡ Suricata</span><span class="badge" id="sur-badge" style="display:none;background:var(--c4)">0</span></div>
+    <div class="ltab" data-t="pihole"             onclick="tab('pihole')"   ><span class="tdot" style="background:#00b4d8"></span><span class="ltab-label">🔵 Pi-hole</span></div>
+    <div class="ltab" data-t="settings"           onclick="tab('settings')" ><span class="tdot"></span><span class="ltab-label">⚙ Settings</span></div>
+  </div>
+</nav>
 
 <!-- Mobile navigation drawer (shown on small screens) -->
 <div id="mobile-nav">
