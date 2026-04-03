@@ -19,8 +19,8 @@ def _to_dict(val, default=None):
         out = {}
         for item in val:
             if not isinstance(item, dict): continue
-            key = item.get('name') or item.get('ip') or item.get('domain') or item.get('id') or ''
-            cnt = item.get('count', 0)
+            key = item.get('domain') or item.get('name') or item.get('ip') or item.get('id') or ''
+            cnt = item.get('count') or item.get('hits') or item.get('queries') or 0
             if key: out[str(key)] = cnt
         return out
     return default or {}
@@ -145,19 +145,45 @@ class PiholeEngine:
             self._last_update = time.time()
             self._error       = ''
 
-        # Top domains — returns {"domains": {"domain": count}}
-        r = self._get('/api/stats/top_domains?count=10')
+        # Top domains — v6: {"domains": [{domain, count}]}, v5: {"domains": {"domain": count}}
+        r = self._get('/api/stats/top_domains?count=20')
         if r:
             raw = r.get('domains', r)
             with self._lock: self._top_queries = _to_dict(raw)
 
-        # Top blocked — Pi-hole v6 may use different endpoint names
-        r = self._get('/api/stats/top_blocked?count=10')
-        if not r or not r.get('blocked'):
-            r = self._get('/api/stats/top_ads?count=10')  # v5/alternate
-        if r:
-            raw = r.get('blocked', r.get('domains', r.get('ads', r)))
-            with self._lock: self._top_blocked = _to_dict(raw)
+        # Top blocked — try every known Pi-hole v5/v6 endpoint variant
+        blocked_raw = None
+
+        # Variant 1: Pi-hole v6 standard
+        r = self._get('/api/stats/top_blocked?count=20')
+        log.debug(f"top_blocked v6 response: {str(r)[:200]}")
+        if r is not None:
+            # v6 returns {"blocked": [...]} — list of {domain, count}
+            # v6 may also return {"blocked": {"domain": count}} dict form
+            val = r.get('blocked')
+            if val is not None:
+                blocked_raw = val
+
+        # Variant 2: Pi-hole v5 / alternate key names
+        if not blocked_raw:
+            r2 = self._get('/api/stats/top_ads?count=20')
+            log.debug(f"top_ads response: {str(r2)[:200]}")
+            if r2:
+                blocked_raw = r2.get('ads') or r2.get('blocked') or r2.get('domains')
+
+        # Variant 3: query top_domains with type filter (some v6 builds)
+        if not blocked_raw:
+            r3 = self._get('/api/stats/top_domains?blocked=true&count=20')
+            log.debug(f"top_domains?blocked response: {str(r3)[:200]}")
+            if r3:
+                blocked_raw = r3.get('domains') or r3.get('blocked')
+
+        log.debug(f"top_blocked final raw: {str(blocked_raw)[:200]}")
+        if blocked_raw:
+            with self._lock: self._top_blocked = _to_dict(blocked_raw)
+        else:
+            log.warning("Pi-hole top_blocked: no data from any endpoint — "
+                        "blocking may be disabled or no domains blocked yet")
 
         # Top clients — returns {"clients": [{"ip":..., "name":..., "count":...}]}
         r = self._get('/api/stats/top_clients?count=10')

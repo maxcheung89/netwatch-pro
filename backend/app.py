@@ -846,6 +846,30 @@ def api_unblock_ip():
 def api_pihole_summary():
     return jsonify(pihole_engine.get_summary())
 
+@app.route('/api/pihole/debug')
+def api_pihole_debug():
+    """Raw debug endpoint — calls every Pi-hole top_blocked variant and returns raw responses."""
+    results = {}
+    endpoints = [
+        '/api/stats/top_blocked?count=20',
+        '/api/stats/top_ads?count=20',
+        '/api/stats/top_domains?count=20',
+        '/api/stats/top_domains?blocked=true&count=20',
+        '/api/stats/summary',
+    ]
+    for ep in endpoints:
+        try:
+            r = pihole_engine._get(ep)
+            results[ep] = r
+        except Exception as e:
+            results[ep] = {'error': str(e)}
+    return jsonify({
+        'sid_valid': bool(pihole_engine._sid),
+        'available': pihole_engine._available,
+        'current_top_blocked': dict(pihole_engine._top_blocked),
+        'endpoints': results,
+    })
+
 @app.route('/api/pihole/test')
 def api_pihole_test():
     return jsonify(pihole_engine.debug_info())

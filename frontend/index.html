@@ -1319,7 +1319,7 @@ code{font-family:var(--mono);font-size:10px;color:var(--cyan);
   <div class="row2">
     <div class="card">
       <div class="ch"><div class="ct-label" style="color:var(--c1)">▪ Live Bandwidth</div><span style="font-family:var(--mono);font-size:10px;color:var(--cd)">60s</span></div>
-      <div class="cb-body"><div style="height:120px;position:relative"><canvas id="bw-chart"></canvas></div></div>
+      <div class="cb-body"><div style="height:120px;position:relative;width:100%;min-width:0"><canvas id="bw-chart"></canvas></div></div>
     </div>
     <div class="card">
       <div class="ch"><div class="ct-label" style="color:var(--c2)">▪ Protocol Distribution</div></div>
@@ -1719,11 +1719,11 @@ code{font-family:var(--mono);font-size:10px;color:var(--cyan);
           <button class="chip c4"    id="sur-chart-alerts" onclick="setSurChart('alerts')">ALERTS/s</button>
         </div>
       </div>
-      <div class="cb-body"><div style="height:130px;position:relative"><canvas id="sur-traffic-chart"></canvas></div></div>
+      <div class="cb-body"><div style="height:130px;position:relative;width:100%;min-width:0"><canvas id="sur-traffic-chart"></canvas></div></div>
     </div>
     <div class="card">
       <div class="ch"><div class="ct-label" style="color:var(--c4)">⚡ Alert Categories</div></div>
-      <div class="cb-body"><div style="height:130px;position:relative"><canvas id="sur-cat-chart"></canvas></div></div>
+      <div class="cb-body"><div style="height:130px;position:relative;width:100%;min-width:0"><canvas id="sur-cat-chart"></canvas></div></div>
     </div>
   </div>
   <div class="row2">
@@ -2035,7 +2035,7 @@ code{font-family:var(--mono);font-size:10px;color:var(--cyan);
           <button class="chip" id="ph-chart-blocked" onclick="phSetChart('blocked')">BLOCKED</button>
         </div>
       </div>
-      <div class="cb-body"><div style="height:140px;position:relative"><canvas id="ph-overtime-chart"></canvas></div></div>
+      <div class="cb-body"><div style="height:140px;position:relative;width:100%;min-width:0"><canvas id="ph-overtime-chart"></canvas></div></div>
     </div>
   </div>
 
@@ -2193,7 +2193,7 @@ function isTab(name){ return document.getElementById('tab-'+name)?.classList.con
 // ══════════════════════════════════════════════════════════════
 // CHARTS
 // ══════════════════════════════════════════════════════════════
-const cOpts={animation:false,plugins:{legend:{display:false}},
+const cOpts={animation:false,responsive:true,plugins:{legend:{display:false}},
   scales:{x:{display:false},y:{display:true,ticks:{color:'#445e72',font:{family:'IBM Plex Mono',size:9}},grid:{color:'rgba(29,45,61,.5)'}}}};
 
 const bwChart=new Chart(document.getElementById('bw-chart'),{
@@ -2606,7 +2606,7 @@ function initSurCharts(){
   surCatChart=new Chart(document.getElementById('sur-cat-chart'),{
     type:'doughnut',
     data:{labels:[],datasets:[{data:[],backgroundColor:['#ff3b7a','#ff9500','#ffd60a','#00d4ff','#7b61ff','#00e5a0','#ff6b35','#5ac8fa','#34c759','#af52de'],borderColor:'#0c1219',borderWidth:2}]},
-    options:{maintainAspectRatio:false,animation:false,plugins:{legend:{display:true,position:'right',labels:{color:'#b8ccd8',font:{family:'IBM Plex Mono',size:9},boxWidth:10}}}}
+    options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{display:true,position:'right',labels:{color:'#b8ccd8',font:{family:'IBM Plex Mono',size:9},boxWidth:10}}}}
   });
 }
 
